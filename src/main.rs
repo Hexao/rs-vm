@@ -7,9 +7,9 @@ fn main() {
 
     let mut cpu = CPU::new(0x40);
 
-    cpu.set_register("r1", 36000);
+    let _ = cpu.set_register("r1", 36000);
     
-    cpu.set_register("r6", 20);
+    let _ = cpu.set_register("r6", 20);
 
     cpu.print_registers();
     assert_eq!(cpu.get_register("r1").unwrap(), 36000);

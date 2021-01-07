@@ -51,4 +51,29 @@ impl CPU {
             println!("register: {}, data: {} {}", *reg, self.registers.get_memory_at(*pointer).unwrap(), self.registers.get_memory_at(*pointer +1).unwrap());
         }
     }
+
+    /// Gets the 8bit instruction pointed to by the instruction pointer and increase himself by one
+    pub fn fetch_u8(&mut self) -> Result<u8, MemoryError> {
+        let next_instruction = self.get_register("ip")?;
+        let instruction = self.memory.get_memory_at(next_instruction as usize)?;
+        self.set_register("ip", next_instruction+1)?;
+
+        Ok(instruction)
+    }
+
+    /// Gets the instruction pointed to by the instruction pointer and increase himself by one
+    pub fn fetch_u16(&mut self) -> Result<u8, MemoryError> {
+        let next_instruction = self.get_register("ip")?;
+        let instruction = self.memory.get_memory_at(next_instruction as usize)?;
+        self.set_register("ip", next_instruction+2)?;
+
+        Ok(instruction)
+    }
+
+    pub fn execute(instruction: u8) {
+        match instruction {
+            0x10 => {}
+            _ => {}
+        }
+    }
 }
