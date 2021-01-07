@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use crate::component::memory::{Memory, MemoryError};
 
-use super::memory;
-
 const REGISTER_NAMES: &'static [&'static str] =
     &["ip", "acc", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"];
 
@@ -103,6 +101,13 @@ impl CPU {
         Ok(())
     }
 
+    pub fn step(&mut self) -> Result<(), MemoryError> {
+        let int = self.fetch_u8()?;
+        self.execute(int)?;
+        Ok(())
+    }
+
+    // DEBUG FUNCTION DO NOT LEAVE IN RELEASE
     pub fn set_instruction(&mut self, instructions: &[u8]) {
         let mut pointer = 0;
         for i in instructions {

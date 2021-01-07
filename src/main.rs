@@ -19,9 +19,10 @@ fn main() {
     ];
 
     cpu.set_instruction(&instructions);
-    for i in 0..3 {
-        let int = cpu.fetch_u8().unwrap();
-        cpu.execute(int).unwrap();
+    for _ in 0..3 {
+        if let Err(e) = cpu.step() {
+            println!("An error has occured: {:?}", e);
+        }
         cpu.print_registers();
     }
     /*let m = Memory::new(0x40);
