@@ -49,20 +49,21 @@ impl CPU {
     }
 
     pub fn print_registers(&self) {
-        for (reg, pointer) in &self.register_map {
-            println!(
-                "register: {}, data: {:#06X}",
-                *reg,
-                self.registers.get_memory_at_u16(*pointer).unwrap(),
-            );
+        print!("Label            : "); // gap to align text
+        for label in REGISTER_NAMES {
+            print!("{: <7}", label);
         }
+        print!("\n");
+
+        self.registers
+            .print_memory_chunk_u16(0, REGISTER_NAMES.len() * 2);
     }
 
     /// Gets the 8bit instruction pointed to by the instruction pointer and increase himself by one
     pub fn fetch_u8(&mut self) -> Result<u8, MemoryError> {
         let next_instruction = self.get_register("ip")?;
         let instruction = self.memory.get_memory_at_u8(next_instruction as usize)?;
-        self.set_register("ip", next_instruction+1)?;
+        self.set_register("ip", next_instruction + 1)?;
 
         Ok(instruction)
     }
@@ -71,7 +72,7 @@ impl CPU {
     pub fn fetch_u16(&mut self) -> Result<u16, MemoryError> {
         let next_instruction = self.get_register("ip")?;
         let instruction = self.memory.get_memory_at_u16(next_instruction as usize)?;
-        self.set_register("ip", next_instruction+2)?;
+        self.set_register("ip", next_instruction + 2)?;
 
         Ok(instruction)
     }
