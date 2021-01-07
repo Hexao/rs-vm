@@ -10,7 +10,7 @@ fn main() {
     cpu.set_register("r6", 0x20).unwrap();
 
     cpu.print_registers();
-    assert_eq!(cpu.get_register("r1").unwrap(), 36000);
+    assert_eq!(cpu.get_register("r1").unwrap(), 0x8574);
     /*let m = Memory::new(0x40);
     let access: [usize; 2] = [0x00, 0x39];
 
