@@ -6,17 +6,17 @@ pub struct Memory {
 
 impl Memory {
     /// Creates a new Memory struct with a provided size of memory
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `size` - The total size of the memory data
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// pub mod component;
     /// use crate::component::memory::Memory;
-    /// 
+    ///
     /// let m = Memory::new(0x40);
     /// assert_eq!(m.len(), 64);
     /// ```
@@ -27,7 +27,7 @@ impl Memory {
     }
 
     /// Get the memory cell from the `data` given a `location`
-    pub fn get_memory_at(&self, location: usize) -> Result<u8, MemoryError> {
+    pub fn get_memory_at_u8(&self, location: usize) -> Result<u8, MemoryError> {
         #[cfg(debug_assertions)]
         if location >= self.data.len() {
             return Err(MemoryError::OutOfBounds(location));
@@ -36,8 +36,16 @@ impl Memory {
         Ok(self.data[location])
     }
 
+    /// Get two memory cell from the `data` given a `location`
+    pub fn get_memory_at_u16(&self, location: usize) -> Result<u16, MemoryError> {
+        let left = self.get_memory_at_u8(location)?;
+        let right = self.get_memory_at_u8(location + 1)?;
+
+        Ok(((left as u16) << 8) + (right as u16))
+    }
+
     /// Set the memory cell from the `data` given a `location`
-    pub fn set_memory_at(&mut self, location: usize, value: u8) -> Result<(), MemoryError> {
+    pub fn set_memory_at_u8(&mut self, location: usize, value: u8) -> Result<(), MemoryError> {
         #[cfg(debug_assertions)]
         if location >= self.data.len() {
             return Err(MemoryError::OutOfBounds(location));
@@ -45,6 +53,15 @@ impl Memory {
 
         self.data[location] = value;
         Ok(())
+    }
+
+    /// Set two memory cell from the `data` given a `location`
+    pub fn set_memory_at_u16(&mut self, location: usize, value: u16) -> Result<(), MemoryError> {
+        let left = (value >> 8) as u8;
+        let right = (value % 0x100) as u8;
+
+        self.set_memory_at_u8(location + 1, right)?;
+        self.set_memory_at_u8(location, left)
     }
 
     /// Return the size of the memory allocated
