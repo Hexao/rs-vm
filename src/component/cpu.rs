@@ -55,4 +55,15 @@ impl CPU {
             );
         }
     }
+
+    pub fn print_registers_alt(&self) {
+        print!("Label            : "); // gap to align text
+        for label in REGISTER_NAMES {
+            print!("{: <7}", label);
+        }
+        print!("\n");
+
+        self.registers
+            .print_memory_chunk_u16(0, REGISTER_NAMES.len() * 2);
+    }
 }
