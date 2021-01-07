@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::component::memory::{Memory, MemoryError};
 
-const register_names: &'static [&'static str] =
+const REGISTER_NAMES: &'static [&'static str] =
     &["ip", "acc", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"];
 
 /// CPU struct that will be the "head" of the VM.
@@ -15,7 +15,7 @@ pub struct CPU {
 
 impl CPU {
     pub fn new(memory: usize) -> Self {
-        let register_map = register_names
+        let register_map = REGISTER_NAMES
             .to_vec()
             .iter()
             .fold(HashMap::new(), |mut map, s| {
@@ -25,7 +25,7 @@ impl CPU {
 
         Self {
             memory: Memory::new(memory),
-            registers: Memory::new(register_names.len() * 2),
+            registers: Memory::new(REGISTER_NAMES.len() * 2),
             register_map,
         }
     }
