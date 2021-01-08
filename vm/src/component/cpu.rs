@@ -93,24 +93,59 @@ impl CPU {
                 self.set_register(reg_name, literal)?;
                 Ok(())
             }
-            // Move literal into r1
-            MOV_LIT_R1 => {
-                let literal = self.fetch_u16()?;
+            // Move register value into a specific register
+            MOV_REG_REG => {
+                let reg_from = self.fetch_u8()?;
+                let reg_to = self.fetch_u8()?;
+                let reg_from_name = REGISTER_NAMES[reg_from as usize];
+                let reg_to_name = REGISTER_NAMES[reg_to as usize];
 
                 #[cfg(debug_assertions)]
-                println!("Move {:#06X} in r1", literal);
+                println!("Move {} in {}", reg_from_name, reg_to_name);
 
-                self.set_register("r1", literal)?;
+                let reg_from_value = self.get_register(reg_from_name)?;
+                self.set_register(reg_to_name, reg_from_value)?;
                 Ok(())
             }
-            // Move literal into r2
-            MOV_LIT_R2 => {
-                let literal = self.fetch_u16()?;
+            // Move register value into a specific memory address
+            MOV_REG_MEM => {
+                let reg = self.fetch_u8()?;
+                let memory_address = self.fetch_u16()?;
+                let reg_name = REGISTER_NAMES[reg as usize];
 
                 #[cfg(debug_assertions)]
-                println!("Move {:#06X} in r2", literal);
+                println!("Move {} at {:#06X} (memory)", reg_name, memory_address);
 
-                self.set_register("r2", literal)?;
+                let reg_value = self.get_register(reg_name)?;
+                self.memory.set_memory_at_u16(memory_address as usize, reg_value)?;
+                Ok(())
+            }
+            // Move memory value into a specific register
+            MOV_MEM_REG => {
+                let memory_address = self.fetch_u16()?;
+                let reg = self.fetch_u8()?;
+                let reg_name = REGISTER_NAMES[reg as usize];
+
+                #[cfg(debug_assertions)]
+                println!("Move {:#06X} (memory) in {}", memory_address, reg_name);
+
+                let mem_value = self.memory.get_memory_at_u16(memory_address as usize)?;
+                self.set_register(reg_name, mem_value)?;
+                Ok(())
+            }
+            // Jump to provided memory address if literal not equal to accumulator value
+            JMP_NOT_EQ => {
+                let literal = self.fetch_u16()?;
+                let address_to_jmp = self.fetch_u16()?;
+
+                let acc_value = self.get_register("acc")?;
+
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory) if {:#06X} (literal) > to {:#06X} (acc)", address_to_jmp, literal, acc_value);
+
+                if acc_value != literal {
+                    self.set_register("ip", address_to_jmp)?;
+                }
                 Ok(())
             }
             // Add register to register
@@ -164,6 +199,14 @@ impl CPU {
             let _ = self.memory.set_memory_at_u8(pointer, *i);
             pointer += 1;
         }
+    }
+
+    pub fn print_memory_chunk_u8(&self, start: usize, end: usize) {
+        self.memory.print_memory_chunk_u8(start, end);
+    }
+
+    pub fn print_memory_chunk_u16(&self, start: usize, end: usize) {
+        self.memory.print_memory_chunk_u16(start, end);
     }
 }
 
