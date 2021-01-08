@@ -1,4 +1,3 @@
-
 #[cfg(test)]
 mod tests {
     #[test]
@@ -21,7 +20,7 @@ mod tests {
             instructions::*,
             register::{ACC, R1, R2},
         };
-        
+
         let mut cpu = CPU::new(0x40);
 
         let instructions = [
@@ -39,7 +38,6 @@ mod tests {
         assert_eq!(cpu.get_register("acc").unwrap(), 0x01);
     }
 
-
     #[test]
     fn cpu_jmp_xor_test() {
         use crate::component::cpu::CPU;
@@ -47,17 +45,17 @@ mod tests {
             instructions::*,
             register::{ACC, R1, R2},
         };
-        
+
         let mut cpu = CPU::new(0xFF);
 
         let instructions = [
-            MOV_LIT_REG,  0x00, 0x01, R2,         // move 0x0001 in r2 (16 bit)
-            MOV_REG_REG,  ACC,  R1,               // store accumulator value in memory address 0x0080
-            ADD_REG_REG,  R1,   R2,               // add r1 and r2
-            JMP_NOT_EQ,   0x00, 0x02, 0x00, 0x04, // Jump to address 0x0000 in memory if accumulator not equal to 0x0004
-            XOR_REG_REG,  R1,   R1,               // XOR register with himself to set to 0
-            XOR_REG_REG,  R2,   R2,               // XOR register with himself to set to 0
-            END,                                  // stop the program
+            MOV_LIT_REG, 0x00, 0x01, R2,         // move 0x0001 in r2 (16 bit)
+            MOV_REG_REG, ACC,  R1,               // store accumulator value in memory address 0x0080
+            ADD_REG_REG, R1,   R2,               // add r1 and r2
+            JMP_NOT_EQ,  0x00, 0x02, 0x00, 0x04, // Jump to address 0x0000 in memory if accumulator not equal to 0x0004
+            XOR_REG_REG, R1,   R1,               // XOR register with himself to set to 0
+            XOR_REG_REG, R2,   R2,               // XOR register with himself to set to 0
+            END,                                 // stop the program
         ];
 
         cpu.set_instruction(&instructions);
@@ -68,13 +66,12 @@ mod tests {
     }
 
     #[test]
-    fn memory_test(){
-        
+    fn memory_test() {
         use crate::component::memory::Memory;
         let mut m = Memory::new(0x40);
         m.set_memory_at_u8(0x01, 0x01).unwrap();
         m.set_memory_at_u8(0x05, 0x20).unwrap();
-        
+
         assert_eq!(m.get_memory_at_u8(0x04).unwrap(), 0x00);
         assert_eq!(m.get_memory_at_u8(0x01).unwrap(), 0x01);
         assert_eq!(m.get_memory_at_u8(0x05).unwrap(), 0x20);
