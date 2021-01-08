@@ -1,5 +1,5 @@
 pub mod component;
-
+mod test;
 //use crate::component::memory::Memory;
 use crate::component::cpu::CPU;
 
