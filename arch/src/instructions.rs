@@ -6,6 +6,7 @@ pub const ADD_REG_REG: u8 = 0x14;
 pub const JMP_NOT_EQ : u8 = 0x15;
 pub const PSH_LIT    : u8 = 0x16;
 pub const PSH_REG    : u8 = 0x17;
+pub const POP_REG    : u8 = 0x18;
 pub const XOR_REG_REG: u8 = 0x50;
 pub const XOR_REG_LIT: u8 = 0x51;
 pub const END        : u8 = 0xFF;

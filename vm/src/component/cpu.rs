@@ -191,12 +191,38 @@ impl CPU {
             // Push Literal on Stack
             PSH_LIT => {
                 let value = self.fetch_u16()?;
+                
+                #[cfg(debug_assertions)]
+                println!("Push {:#06X} (literal) on stack, decrement stack pointer", value);
+
                 self.push(value)
             }
             // Push register on stack
             PSH_REG => {
-                let register_index = self.fetch_reg()? * 2;
-                self.push(self.registers.get_memory_at_u16(register_index)?)
+                let register_index = self.fetch_reg()?;
+                let value = self.registers.get_memory_at_u16(register_index * 2)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[register_index];
+                    println!("Push {:#06X} (value on {}) on stack, decrement stack pointer", value, reg_name);
+                }
+
+                self.push(value)
+            }
+            // Pop stack head to given register
+            POP_REG => {
+                let reg = self.fetch_reg()?;
+                let value = self.pop()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Pop {:#06X} (value on stack) to {}, increment stack pointer", value, reg_name);
+                }
+
+                self.registers.set_memory_at_u16(reg * 2, value)?;
+                Ok(())
             }
             // Xor register with other register
             XOR_REG_REG => {
@@ -248,16 +274,17 @@ impl CPU {
 
     fn push(&mut self, value: u16) -> Result<(), ExecutionError> {
         let sp_address = self.get_register("sp")?;
-
-        #[cfg(debug_assertions)]
-        {
-            println!("Push {:#06X} on stack, decrement stack pointer", value);
-        }
-
         self.memory.set_memory_at_u16(sp_address as usize, value)?;
-        self.set_register("sp", sp_address - 2)?;
 
+        self.set_register("sp", sp_address - 2)?;
         Ok(())  
+    }
+
+    fn pop(&mut self) -> Result<u16, MemoryError> {
+        let head = self.get_register("sp")? + 2;
+        self.set_register("sp", head)?;
+
+        Ok(self.memory.get_memory_at_u16(head as usize)?)
     }
 
     pub fn step(&mut self) -> bool {

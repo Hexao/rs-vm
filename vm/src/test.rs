@@ -77,4 +77,31 @@ mod tests {
         assert_eq!(m.get_memory_at_u8(0x05).unwrap(), 0x20);
         assert_eq!(m.get_memory_at_u8(0x40).is_err(), true);
     }
+
+    #[test]
+    fn swap_registers_with_stack() {
+        use crate::component::cpu::CPU;
+        use arch::{
+            instructions::*,
+            register::{R1, R2},
+        };
+
+        let mut cpu = CPU::new(0x20);
+        let instructions = [
+            MOV_LIT_REG, 0x00, 0x4F, R1,
+            MOV_LIT_REG, 0xF4, 0x00, R2,
+            PSH_REG,     R1,
+            PSH_REG,     R2,
+            POP_REG,     R1,
+            POP_REG,     R2,
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("r1").unwrap(), 0xF400);
+        assert_eq!(cpu.get_register("r2").unwrap(), 0x004F);
+        assert_eq!(cpu.get_register("sp").unwrap(), 0x001E);
+    }
 }
