@@ -4,7 +4,7 @@ use crate::component::memory::{Memory, MemoryError};
 use arch::instructions::*;
 
 const REGISTER_NAMES: &'static [&'static str] =
-    &["ip", "acc", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"];
+    &["ip", "acc", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "sp", "fp"];
 
 /// CPU struct that will be the "head" of the VM.
 /// It handles everything from memory pointers to executing incomming instructions
