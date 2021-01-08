@@ -58,6 +58,10 @@ impl CPU {
             .print_memory_chunk_u16(0, REGISTER_NAMES.len() * 2);
     }
 
+    pub fn fetch_reg(&mut self) -> Result<usize, MemoryError> {
+        Ok(self.fetch_u8()? as usize % REGISTER_NAMES.len())
+    }
+
     /// Gets the 8bit instruction pointed to by the instruction pointer and increase himself by one
     pub fn fetch_u8(&mut self) -> Result<u8, MemoryError> {
         let next_instruction = self.get_register("ip")?;
@@ -84,65 +88,107 @@ impl CPU {
             // Move literal into a specific register
             MOV_LIT_REG => {
                 let literal = self.fetch_u16()?;
-                let reg = self.fetch_u8()?;
-                let reg_name = REGISTER_NAMES[reg as usize];
+                let reg = self.fetch_reg()?;
 
                 #[cfg(debug_assertions)]
-                println!("Move {:#06X} in {}", literal, reg_name);
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Move {:#06X} (literal) in {}", literal, reg_name);
+                }
 
-                self.set_register(reg_name, literal)?;
+                self.registers.set_memory_at_u16(reg * 2, literal)?;
                 Ok(())
             }
-            // Move literal into r1
-            MOV_LIT_R1 => {
-                let literal = self.fetch_u16()?;
+            // Move register value into a specific register
+            MOV_REG_REG => {
+                let reg_from = self.fetch_reg()?;
+                let reg_to = self.fetch_reg()?;
 
                 #[cfg(debug_assertions)]
-                println!("Move {:#06X} in r1", literal);
+                {
+                    let reg_from_name = REGISTER_NAMES[reg_from];
+                    let reg_to_name = REGISTER_NAMES[reg_to];
+                    println!("Move {} in {}", reg_from_name, reg_to_name);
+                }
 
-                self.set_register("r1", literal)?;
+                let value = self.registers.get_memory_at_u16(reg_from * 2)?;
+                self.registers.set_memory_at_u16(reg_to * 2, value)?;
                 Ok(())
             }
-            // Move literal into r2
-            MOV_LIT_R2 => {
-                let literal = self.fetch_u16()?;
+            // Move register value into a specific memory address
+            MOV_REG_MEM => {
+                let reg = self.fetch_reg()?;
+                let memory_address = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Move {:#06X} in r2", literal);
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Move {} at {:#06X} (memory)", reg_name, memory_address);
+                }
 
-                self.set_register("r2", literal)?;
+                let reg_value = self.registers.get_memory_at_u16(reg * 2)?;
+                self.memory.set_memory_at_u16(memory_address as usize, reg_value)?;
+                Ok(())
+            }
+            // Move memory value into a specific register
+            MOV_MEM_REG => {
+                let memory_address = self.fetch_u16()? as usize;
+                let reg = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Move {:#06X} (memory) in {}", memory_address, reg_name);
+                }
+
+                let mem_value = self.memory.get_memory_at_u16(memory_address)?;
+                self.registers.set_memory_at_u16(reg * 2, mem_value)?;
+                Ok(())
+            }
+            // Jump to provided memory address if literal not equal to accumulator value
+            JMP_NOT_EQ => {
+                let literal = self.fetch_u16()?;
+                let address_to_jmp = self.fetch_u16()?;
+                let acc_value = self.get_register("acc")?;
+
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory) if {:#06X} (literal) != to {:#06X} (acc)", address_to_jmp, literal, acc_value);
+
+                if acc_value != literal {
+                    self.set_register("ip", address_to_jmp)?;
+                }
                 Ok(())
             }
             // Add register to register
             ADD_REG_REG => {
-                let r1 = self.fetch_u8()? as usize;
-                let r2 = self.fetch_u8()? as usize;
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
 
                 #[cfg(debug_assertions)]
                 {
-                    let r1n = REGISTER_NAMES[r1 as usize];
-                    let r2n = REGISTER_NAMES[r2 as usize];
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
                     println!("Add {} and {}, store result in ACC", r1n, r2n);
                 }
 
-                let register_value1 = self.registers.get_memory_at_u16(r1 * 2)?;
-                let register_value2 = self.registers.get_memory_at_u16(r2 * 2)?;
+                let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
+                let r2_value = self.registers.get_memory_at_u16(r2 * 2)?;
 
-                self.set_register("acc", register_value1.overflowing_add(register_value2).0)?;
+                self.set_register("acc", r1_value.overflowing_add(r2_value).0)?;
                 Ok(())
             }
             // End execution
             END => {
                 #[cfg(debug_assertions)]
-                println!("End of execution\n");
+                println!("End of execution");
 
                 Err(ExecutionError::EndOfExecution)
             }
             code => {
                 #[cfg(debug_assertions)]
-                println!("<ERROR> : The instruction {:#04X} is not known by this CPU\n", code);
+                println!("<ERROR> => The instruction {:#04X} is not known by this CPU\n", code);
 
-                Err(ExecutionError::UnexpectedInstruction)
+                Err(ExecutionError::UnexpectedInstruction(code))
             }
         }
     }
@@ -151,9 +197,19 @@ impl CPU {
         match self.fetch_u8() {
             Ok(int) => match self.execute(int) {
                 Ok(_ok) => true,
-                Err(_err) => false
+                Err(err) => {
+                    match err {
+                        ExecutionError::EndOfExecution => (),
+                        _ => println!("{:?}", err),
+                    }
+
+                    false
+                }
             },
-            Err(_err) => false
+            Err(err) => {
+                println!("{:?}", err);
+                false
+            }
         }
     }
 
@@ -165,16 +221,36 @@ impl CPU {
             pointer += 1;
         }
     }
+
+    pub fn print_memory_chunk_u8(&self, start: usize, end: usize) {
+        self.memory.print_memory_chunk_u8(start, end);
+    }
+
+    pub fn print_memory_chunk_u16(&self, start: usize, end: usize) {
+        self.memory.print_memory_chunk_u16(start, end);
+    }
 }
 
 enum ExecutionError {
     BadMemoryAccess,
-    UnexpectedInstruction,
+    UnexpectedInstruction(u8),
     EndOfExecution,
 }
 
 impl From<MemoryError> for ExecutionError {
     fn from(_: MemoryError) -> Self {
         Self::BadMemoryAccess
+    }
+}
+
+impl std::fmt::Debug for ExecutionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let error = match self {
+            ExecutionError::BadMemoryAccess => format!("CPU try to access not allowed memory chunk !"),
+            ExecutionError::UnexpectedInstruction(ins) => format!("Instruction {:#04X} is not permitted", ins),
+            ExecutionError::EndOfExecution => format!("CPU reaches end of executable code"),
+        };
+
+        write!(f, "{}", error)
     }
 }
