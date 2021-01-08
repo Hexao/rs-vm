@@ -141,7 +141,7 @@ impl CPU {
                 let acc_value = self.get_register("acc")?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if {:#06X} (literal) > to {:#06X} (acc)", address_to_jmp, literal, acc_value);
+                println!("Jump to {:#06X} (memory) if {:#06X} (literal) != to {:#06X} (acc)", address_to_jmp, literal, acc_value);
 
                 if acc_value != literal {
                     self.set_register("ip", address_to_jmp)?;
