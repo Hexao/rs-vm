@@ -76,8 +76,8 @@ impl Memory {
         print!("Memory at {:#06X} :", start);
         for address in start..end {
             match self.get_memory_at_u8(address) {
-                Ok(data) => print!(" {:#04X}", data),
-                Err(_) => print!(" 0x--"),
+                Ok(data) if data > 0 => print!(" {:#04X}", data),
+                _ => print!(" 0x--"),
             }
         }
         print!("\n")
@@ -90,8 +90,8 @@ impl Memory {
         print!("Memory at {:#06X} :", start);
         for address in (start..end).step_by(2) {
             match self.get_memory_at_u16(address) {
-                Ok(data) => print!(" {:#06X}", data),
-                Err(_) => print!(" 0x--"),
+                Ok(data) if data > 0 => print!(" {:#06X}", data),
+                _ => print!(" 0x----"),
             }
         }
         print!("\n")
