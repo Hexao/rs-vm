@@ -76,24 +76,38 @@ impl CPU {
     }
 
     pub fn execute(&mut self, instruction: u8) -> Result<(), MemoryError> {
+        #[cfg(debug_assertions)]
+        print!("\nInstruction      : ");
+
         match instruction {
             // move literal into the r1 register
             0x10 => {
                 let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                println!("Move {:#06X} in R1", literal);
+
                 self.set_register("r1", literal)?;
             }
             // move literal into the r2 register
             0x11 => {
                 let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                println!("Move {:#06X} in R2", literal);
+
                 self.set_register("r2", literal)?;
             }
             // Add register to register
             0x12 => {
+                #[cfg(debug_assertions)]
+                println!("Add R1 and R2, store result in ACC");
+
                 let r1 = self.fetch_u8()? as usize;
                 let r2 = self.fetch_u8()? as usize;
                 let register_value1 = self.registers.get_memory_at_u16(r1 * 2)?;
                 let register_value2 = self.registers.get_memory_at_u16(r2 * 2)?;
-                self.set_register("acc", register_value1 + register_value2)?;
+                self.set_register("acc", register_value1.overflowing_add(register_value2).0)?;
             }
             _ => {}
         }

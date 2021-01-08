@@ -13,9 +13,9 @@ fn main() {
     assert_eq!(cpu.get_register("r1").unwrap(), 0x8574);
 
     let instructions = [
-        0x10, 0x00, 0x02, //move 0x02 in r1 (16 bit)
-        0x11, 0x00, 0x03, //move 0x03 in r2 (16 bit)
-        0x12, 0x02, 0x03 // add r1 and r2
+        0x10, 0xFF, 0xFF, // move 0xFFFF in r1 (16 bit)
+        0x11, 0x00, 0x01, // move 0x0001 in r2 (16 bit)
+        0x12, 0x02, 0x03, // add r1 and r2
     ];
 
     cpu.set_instruction(&instructions);
