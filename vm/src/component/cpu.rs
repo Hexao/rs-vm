@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::component::memory::{Memory, MemoryError};
+use arch::instructions::*;
 
 const REGISTER_NAMES: &'static [&'static str] =
     &["ip", "acc", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"];
@@ -75,50 +76,65 @@ impl CPU {
         Ok(instruction)
     }
 
-    pub fn execute(&mut self, instruction: u8) -> Result<(), MemoryError> {
+    fn execute(&mut self, instruction: u8) -> Result<(), ExecutionError> {
         #[cfg(debug_assertions)]
         print!("\nInstruction      : ");
 
         match instruction {
-            // move literal into the r1 register
-            0x10 => {
+            // Move literal into a specific register
+            MOV_LIT_REG => {
                 let literal = self.fetch_u16()?;
+                let reg = self.fetch_u8()?;
+                let reg_name = REGISTER_NAMES[reg as usize];
 
                 #[cfg(debug_assertions)]
-                println!("Move {:#06X} in R1", literal);
+                println!("Move {:#06X} in {}", literal, reg_name);
 
-                self.set_register("r1", literal)?;
-            }
-            // move literal into the r2 register
-            0x11 => {
-                let literal = self.fetch_u16()?;
-
-                #[cfg(debug_assertions)]
-                println!("Move {:#06X} in R2", literal);
-
-                self.set_register("r2", literal)?;
+                let _ = self.set_register(reg_name, literal)?;
+                Ok(())
             }
             // Add register to register
-            0x12 => {
-                #[cfg(debug_assertions)]
-                println!("Add R1 and R2, store result in ACC");
-
+            ADD_REG_REG => {
                 let r1 = self.fetch_u8()? as usize;
                 let r2 = self.fetch_u8()? as usize;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1 as usize];
+                    let r2n = REGISTER_NAMES[r2 as usize];
+                    println!("Add {} and {}, store result in ACC", r1n, r2n);
+                }
+
                 let register_value1 = self.registers.get_memory_at_u16(r1 * 2)?;
                 let register_value2 = self.registers.get_memory_at_u16(r2 * 2)?;
-                self.set_register("acc", register_value1.overflowing_add(register_value2).0)?;
-            }
-            _ => {}
-        }
 
-        Ok(())
+                let _ = self.set_register("acc", register_value1.overflowing_add(register_value2).0)?;
+                Ok(())
+            }
+            // End execution
+            END => {
+                #[cfg(debug_assertions)]
+                println!("End of execution\n");
+
+                Err(ExecutionError::EndOfExecution)
+            }
+            code => {
+                #[cfg(debug_assertions)]
+                println!("<ERROR> : The instruction {:#04X} is not known by this CPU\n", code);
+
+                Err(ExecutionError::UnexpectedInstruction)
+            }
+        }
     }
 
-    pub fn step(&mut self) -> Result<(), MemoryError> {
-        let int = self.fetch_u8()?;
-        self.execute(int)?;
-        Ok(())
+    pub fn step(&mut self) -> bool {
+        match self.fetch_u8() {
+            Ok(int) => match self.execute(int) {
+                Ok(_ok) => true,
+                Err(_err) => false
+            },
+            Err(_err) => false
+        }
     }
 
     // DEBUG FUNCTION DO NOT LEAVE IN RELEASE
@@ -128,5 +144,17 @@ impl CPU {
             let _ = self.memory.set_memory_at_u8(pointer, *i);
             pointer += 1;
         }
+    }
+}
+
+enum ExecutionError {
+    BadMemoryAccess,
+    UnexpectedInstruction,
+    EndOfExecution,
+}
+
+impl From<MemoryError> for ExecutionError {
+    fn from(_: MemoryError) -> Self {
+        Self::BadMemoryAccess
     }
 }
