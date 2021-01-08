@@ -93,7 +93,7 @@ impl CPU {
                 self.set_register(reg_name, literal)?;
                 Ok(())
             }
-            // Move literal into a specific register
+            // Move literal into r1
             MOV_LIT_R1 => {
                 let literal = self.fetch_u16()?;
 
@@ -103,7 +103,7 @@ impl CPU {
                 self.set_register("r1", literal)?;
                 Ok(())
             }
-            // Move literal into a specific register
+            // Move literal into r2
             MOV_LIT_R2 => {
                 let literal = self.fetch_u16()?;
 

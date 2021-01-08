@@ -29,7 +29,7 @@ mod tests {
             MOV_LIT_REG, 0x00, 0x02, R2,  // move 0x0001 in r2 (16 bit)
             MOV_LIT_REG, 0x00, 0x4F, ACC, // fill ACC with non-null value
             ADD_REG_REG, R1,   R2,        // add r1 and r2
-            END,                         // stop the program
+            END,                          // stop the program
         ];
 
         cpu.set_instruction(&instructions);
@@ -50,7 +50,6 @@ mod tests {
         assert_eq!(m.get_memory_at_u8(0x04).unwrap(), 0x00);
         assert_eq!(m.get_memory_at_u8(0x01).unwrap(), 0x01);
         assert_eq!(m.get_memory_at_u8(0x05).unwrap(), 0x20);
-
         assert_eq!(m.get_memory_at_u8(0x40).is_err(), true);
     }
 }
