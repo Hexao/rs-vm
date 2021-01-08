@@ -16,6 +16,8 @@ fn main() {
         MOV_REG_REG,  ACC,  R1,               // store accumulator value in memory address 0x0080
         ADD_REG_REG,  R1,   R2,               // add r1 and r2
         JMP_NOT_EQ,   0x00, 0x02, 0x00, 0x04, // Jump to address 0x0000 in memory if accumulator not equal to 0x0004
+        XOR_REG_REG,  R1,   R1,               // XOR register with himself to set to 0
+        XOR_REG_REG,  R2,   R2,               // XOR register with himself to set to 0
         END,                                  // stop the program
     ];
 

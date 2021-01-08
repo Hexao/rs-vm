@@ -177,6 +177,38 @@ impl CPU {
                 self.set_register("acc", r1_value.overflowing_add(r2_value).0)?;
                 Ok(())
             }
+            // Xor register with other register
+            XOR_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("Xor {} and {}, in {}", r1n, r2n, r1n);
+                }
+
+                let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
+                let r2_value = self.registers.get_memory_at_u16(r2 * 2)?;
+                self.registers.set_memory_at_u16(r1 * 2, r1_value^r2_value)?;
+                Ok(())
+            }
+            // Xor register with literal
+            XOR_REG_LIT => {
+                let r1 = self.fetch_reg()?;
+                let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    println!("Xor {} and {:#06X}, in {}", r1n, literal, r1n);
+                }
+
+                let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
+                self.registers.set_memory_at_u16(r1 * 2, r1_value^literal)?;
+                Ok(())
+            }
             // End execution
             END => {
                 #[cfg(debug_assertions)]
