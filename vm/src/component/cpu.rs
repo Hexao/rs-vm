@@ -90,7 +90,27 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 println!("Move {:#06X} in {}", literal, reg_name);
 
-                let _ = self.set_register(reg_name, literal)?;
+                self.set_register(reg_name, literal)?;
+                Ok(())
+            }
+            // Move literal into a specific register
+            MOV_LIT_R1 => {
+                let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                println!("Move {:#06X} in r1", literal);
+
+                self.set_register("r1", literal)?;
+                Ok(())
+            }
+            // Move literal into a specific register
+            MOV_LIT_R2 => {
+                let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                println!("Move {:#06X} in r2", literal);
+
+                self.set_register("r2", literal)?;
                 Ok(())
             }
             // Add register to register
@@ -108,7 +128,7 @@ impl CPU {
                 let register_value1 = self.registers.get_memory_at_u16(r1 * 2)?;
                 let register_value2 = self.registers.get_memory_at_u16(r2 * 2)?;
 
-                let _ = self.set_register("acc", register_value1.overflowing_add(register_value2).0)?;
+                self.set_register("acc", register_value1.overflowing_add(register_value2).0)?;
                 Ok(())
             }
             // End execution
