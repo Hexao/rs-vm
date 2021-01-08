@@ -4,7 +4,7 @@ mod test;
 use crate::component::cpu::CPU;
 use arch::{
     instructions::*,
-    register::{ACC, R1, R2},
+    register::{R1, R2},
 };
 
 fn main() {
@@ -12,16 +12,18 @@ fn main() {
     cpu.print_registers();
 
     let instructions = [
-        MOV_LIT_REG,  0x00, 0x01, R2,         // move 0x0001 in r2 (16 bit)
-        MOV_REG_REG,  ACC,  R1,               // store accumulator value in memory address 0x0080
-        ADD_REG_REG,  R1,   R2,               // add r1 and r2
-        JMP_NOT_EQ,   0x00, 0x02, 0x00, 0x04, // Jump to address 0x0000 in memory if accumulator not equal to 0x0004
-        END,                                  // stop the program
+        MOV_LIT_REG, 0x12, 0x34, R1, // move 0x1234 in r1 (16 bit)
+        MOV_LIT_REG, 0xAB, 0xCD, R2, // move 0xABCD in r2 (16 bit)
+        PSH_REG,     R1,             // push value on R1 on the stack
+        PSH_REG,     R2,             // push value on R2 on the stack
+        POP_REG,     R1,             // pop value from the stack to R1
+        POP_REG,     R2,             // pop value from the stack to R2
+        END,                         // stop program
     ];
 
     cpu.set_instruction(&instructions);
     while cpu.step() {
         cpu.print_registers();
-        // cpu.print_memory_chunk_u16(0x0080, 0x0094);
+        cpu.print_memory_chunk_u16(0xF7, 0xFF);
     }
 }

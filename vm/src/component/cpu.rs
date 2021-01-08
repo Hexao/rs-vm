@@ -3,8 +3,12 @@ use std::collections::HashMap;
 use crate::component::memory::{Memory, MemoryError};
 use arch::instructions::*;
 
-const REGISTER_NAMES: &'static [&'static str] =
-    &["ip", "acc", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"];
+const REGISTER_NAMES: &'static [&'static str] = &[
+    "ip", "acc",
+    "r1", "r2", "r3", "r4",
+    "r5", "r6", "r7", "r8",
+    "sp", "fp",
+];
 
 /// CPU struct that will be the "head" of the VM.
 /// It handles everything from memory pointers to executing incomming instructions
@@ -24,9 +28,13 @@ impl CPU {
                 map
             });
 
+        let mut registers = Memory::new(REGISTER_NAMES.len() * 2);
+        registers.set_memory_at_u16(10*2, (memory - 2) as u16).unwrap(); // 10 is the index of SP; - 1 for the length and -1 because 2 bytes
+        registers.set_memory_at_u16(11*2, (memory - 2) as u16).unwrap(); // 11 is the index of FP; - 1 for the length and -1 because 2 bytes
+
         Self {
             memory: Memory::new(memory),
-            registers: Memory::new(REGISTER_NAMES.len() * 2),
+            registers,
             register_map,
         }
     }
@@ -152,7 +160,10 @@ impl CPU {
                 let acc_value = self.get_register("acc")?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if {:#06X} (literal) != to {:#06X} (acc)", address_to_jmp, literal, acc_value);
+                println!(
+                    "Jump to {:#06X} (memory) if {:#06X} (literal) != to {:#06X} (acc)",
+                    address_to_jmp, literal, acc_value
+                );
 
                 if acc_value != literal {
                     self.set_register("ip", address_to_jmp)?;
@@ -177,6 +188,74 @@ impl CPU {
                 self.set_register("acc", r1_value.overflowing_add(r2_value).0)?;
                 Ok(())
             }
+            // Push Literal on Stack
+            PSH_LIT => {
+                let value = self.fetch_u16()?;
+                
+                #[cfg(debug_assertions)]
+                println!("Push {:#06X} (literal) on stack, decrement stack pointer", value);
+
+                self.push(value)
+            }
+            // Push register on stack
+            PSH_REG => {
+                let register_index = self.fetch_reg()?;
+                let value = self.registers.get_memory_at_u16(register_index * 2)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[register_index];
+                    println!("Push {:#06X} (value on {}) on stack, decrement stack pointer", value, reg_name);
+                }
+
+                self.push(value)
+            }
+            // Pop stack head to given register
+            POP_REG => {
+                let reg = self.fetch_reg()?;
+                let value = self.pop()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Pop {:#06X} (value on stack) to {}, increment stack pointer", value, reg_name);
+                }
+
+                self.registers.set_memory_at_u16(reg * 2, value)?;
+                Ok(())
+            }
+            // Xor register with other register
+            XOR_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("Xor {} and {}, in {}", r1n, r2n, r1n);
+                }
+
+                let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
+                let r2_value = self.registers.get_memory_at_u16(r2 * 2)?;
+                self.registers.set_memory_at_u16(r1 * 2, r1_value ^ r2_value)?;
+                Ok(())
+            }
+            // Xor register with literal
+            XOR_REG_LIT => {
+                let r1 = self.fetch_reg()?;
+                let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    println!("Xor {} and {:#06X}, in {}", r1n, literal, r1n);
+                }
+
+                let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
+                self.registers.set_memory_at_u16(r1 * 2, r1_value ^ literal)?;
+                Ok(())
+            }
             // End execution
             END => {
                 #[cfg(debug_assertions)]
@@ -191,6 +270,21 @@ impl CPU {
                 Err(ExecutionError::UnexpectedInstruction(code))
             }
         }
+    }
+
+    fn push(&mut self, value: u16) -> Result<(), ExecutionError> {
+        let sp_address = self.get_register("sp")?;
+        self.memory.set_memory_at_u16(sp_address as usize, value)?;
+
+        self.set_register("sp", sp_address - 2)?;
+        Ok(())  
+    }
+
+    fn pop(&mut self) -> Result<u16, MemoryError> {
+        let head = self.get_register("sp")? + 2;
+        self.set_register("sp", head)?;
+
+        Ok(self.memory.get_memory_at_u16(head as usize)?)
     }
 
     pub fn step(&mut self) -> bool {
