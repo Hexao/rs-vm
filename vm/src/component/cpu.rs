@@ -3,8 +3,12 @@ use std::collections::HashMap;
 use crate::component::memory::{Memory, MemoryError};
 use arch::instructions::*;
 
-const REGISTER_NAMES: &'static [&'static str] =
-    &["ip", "acc", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "sp", "fp"];
+const REGISTER_NAMES: &'static [&'static str] = &[
+    "ip", "acc",
+    "r1", "r2", "r3", "r4",
+    "r5", "r6", "r7", "r8",
+    "sp", "fp",
+];
 
 /// CPU struct that will be the "head" of the VM.
 /// It handles everything from memory pointers to executing incomming instructions
@@ -152,7 +156,10 @@ impl CPU {
                 let acc_value = self.get_register("acc")?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if {:#06X} (literal) != to {:#06X} (acc)", address_to_jmp, literal, acc_value);
+                println!(
+                    "Jump to {:#06X} (memory) if {:#06X} (literal) != to {:#06X} (acc)",
+                    address_to_jmp, literal, acc_value
+                );
 
                 if acc_value != literal {
                     self.set_register("ip", address_to_jmp)?;
@@ -191,7 +198,7 @@ impl CPU {
 
                 let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
                 let r2_value = self.registers.get_memory_at_u16(r2 * 2)?;
-                self.registers.set_memory_at_u16(r1 * 2, r1_value^r2_value)?;
+                self.registers.set_memory_at_u16(r1 * 2, r1_value ^ r2_value)?;
                 Ok(())
             }
             // Xor register with literal
@@ -206,7 +213,7 @@ impl CPU {
                 }
 
                 let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
-                self.registers.set_memory_at_u16(r1 * 2, r1_value^literal)?;
+                self.registers.set_memory_at_u16(r1 * 2, r1_value ^ literal)?;
                 Ok(())
             }
             // End execution
