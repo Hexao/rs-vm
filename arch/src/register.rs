@@ -8,3 +8,5 @@ pub const R5 : u8 = 6;
 pub const R6 : u8 = 7;
 pub const R7 : u8 = 8;
 pub const R8 : u8 = 9;
+pub const SP : u8 = 10;
+pub const FP : u8 = 11;

@@ -24,9 +24,13 @@ impl CPU {
                 map
             });
 
+        let mut registers = Memory::new(REGISTER_NAMES.len() * 2);
+        registers.set_memory_at_u16(10*2, (memory - 2) as u16).unwrap(); // 10 is the index of SP; - 1 for the length and -1 because 2 bytes
+        registers.set_memory_at_u16(11*2, (memory - 2) as u16).unwrap(); // 11 is the index of FP; - 1 for the length and -1 because 2 bytes
+
         Self {
             memory: Memory::new(memory),
-            registers: Memory::new(REGISTER_NAMES.len() * 2),
+            registers,
             register_map,
         }
     }
@@ -177,6 +181,16 @@ impl CPU {
                 self.set_register("acc", r1_value.overflowing_add(r2_value).0)?;
                 Ok(())
             }
+            // Push Literal on Stack
+            PSH_LIT => {
+                let value = self.fetch_u16()?;
+                self.push(value)
+            }
+            // Push register on stack
+            PSH_REG => {
+                let register_index = self.fetch_reg()? * 2;
+                self.push(self.registers.get_memory_at_u16(register_index)?)
+            }
             // Xor register with other register
             XOR_REG_REG => {
                 let r1 = self.fetch_reg()?;
@@ -223,6 +237,20 @@ impl CPU {
                 Err(ExecutionError::UnexpectedInstruction(code))
             }
         }
+    }
+
+    fn push(&mut self, value: u16) -> Result<(), ExecutionError> {
+        let sp_address = self.get_register("sp")?;
+
+        #[cfg(debug_assertions)]
+        {
+            println!("Push {:#06X} on stack, decrement stack pointer", value);
+        }
+
+        self.memory.set_memory_at_u16(sp_address as usize, value)?;
+        self.set_register("sp", sp_address - 2)?;
+
+        Ok(())  
     }
 
     pub fn step(&mut self) -> bool {
