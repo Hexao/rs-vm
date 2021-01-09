@@ -104,4 +104,37 @@ mod tests {
         assert_eq!(cpu.get_register("r2").unwrap(), 0x004F);
         assert_eq!(cpu.get_register("sp").unwrap(), 0x001E);
     }
+
+    fn call_subroutine() {
+        use crate::component::cpu::CPU;
+        use arch::{
+            instructions::*,
+            register::{R1, R2, R3, R4},
+        };
+
+        let mut cpu = CPU::new(0x40);
+        let instructions = [
+            MOV_LIT_REG, 0x11, 0x11, R1, // 0x0000
+            MOV_LIT_REG, 0x33, 0x33, R3, // 0x0004
+            PSH_LIT, 0x22, 0x22,         // 0x0008
+            CALL_LIT, 0x00, 0x18,        // 0x000B
+            POP_REG, R2,                 // 0x000E
+            END,                         // 0x0010
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, // next octet is 0x0018
+            PSH_LIT, 0xAB, 0xCD,         // 0x0018
+            PSH_LIT, 0x12, 0x34,         // 0x001B
+            MOV_LIT_REG, 0xFF, 0xFF, R2, // 0x001E
+            MOV_LIT_REG, 0xFF, 0xFF, R4, // 0x0022
+            RET,                         // 0x0026
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("r1").unwrap(), 0x1111);
+        assert_eq!(cpu.get_register("r2").unwrap(), 0x2222);
+        assert_eq!(cpu.get_register("r3").unwrap(), 0x3333);
+        assert_eq!(cpu.get_register("r4").unwrap(), 0x0000);
+    }
 }

@@ -4,7 +4,7 @@ mod test;
 use crate::component::cpu::CPU;
 use arch::{
     instructions::*,
-    register::{R1, R2},
+    register::{R1, R2, R3, R4},
 };
 
 fn main() {
@@ -12,18 +12,24 @@ fn main() {
     cpu.print_registers();
 
     let instructions = [
-        MOV_LIT_REG, 0x12, 0x34, R1, // move 0x1234 in r1 (16 bit)
-        MOV_LIT_REG, 0xAB, 0xCD, R2, // move 0xABCD in r2 (16 bit)
-        PSH_REG,     R1,             // push value on R1 on the stack
-        PSH_REG,     R2,             // push value on R2 on the stack
-        POP_REG,     R1,             // pop value from the stack to R1
-        POP_REG,     R2,             // pop value from the stack to R2
-        END,                         // stop program
+        MOV_LIT_REG, 0x11, 0x11, R1, // 0x0000
+        MOV_LIT_REG, 0x33, 0x33, R3, // 0x0004
+        PSH_LIT, 0x22, 0x22,         // 0x0008
+        CALL_LIT, 0x00, 0x18,        // 0x000B
+        POP_REG, R2,                 // 0x000E
+        END,                         // 0x0010
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, // next octet is 0x0018
+        PSH_LIT, 0xAB, 0xCD,         // 0x0018
+        PSH_LIT, 0x12, 0x34,         // 0x001B
+        MOV_LIT_REG, 0xFF, 0xFF, R2, // 0x001E
+        MOV_LIT_REG, 0xFF, 0xFF, R4, // 0x0022
+        RET,                         // 0x0026
     ];
 
     cpu.set_instruction(&instructions);
     while cpu.step() {
         cpu.print_registers();
-        cpu.print_memory_chunk_u16(0xF7, 0xFF);
+        cpu.print_memory_chunk_u16(0xE1, 0xFF);
     }
 }

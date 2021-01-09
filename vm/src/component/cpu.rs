@@ -15,6 +15,7 @@ const REGISTER_NAMES: &'static [&'static str] = &[
 pub struct CPU {
     memory: Memory,
     registers: Memory,
+    stack_frame_size: usize,
     register_map: HashMap<&'static str, usize>,
 }
 
@@ -35,6 +36,7 @@ impl CPU {
         Self {
             memory: Memory::new(memory),
             registers,
+            stack_frame_size: 0,
             register_map,
         }
     }
@@ -43,7 +45,7 @@ impl CPU {
         let reg_pointer = self
             .register_map
             .get(name)
-            .expect("Register name does not exist");
+            .expect(&format!("Register {} does not exist", name));
         self.registers.get_memory_at_u16(*reg_pointer)
     }
 
@@ -51,7 +53,7 @@ impl CPU {
         let reg_pointer = self
             .register_map
             .get(name)
-            .expect("Register name does not exist");
+            .expect(&format!("Register {} does not exist", name));
         self.registers.set_memory_at_u16(*reg_pointer, data)
     }
 
@@ -195,7 +197,8 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 println!("Push {:#06X} (literal) on stack, decrement stack pointer", value);
 
-                self.push(value)
+                self.push(value)?;
+                Ok(())
             }
             // Push register on stack
             PSH_REG => {
@@ -208,7 +211,8 @@ impl CPU {
                     println!("Push {:#06X} (value on {}) on stack, decrement stack pointer", value, reg_name);
                 }
 
-                self.push(value)
+                self.push(value)?;
+                Ok(())
             }
             // Pop stack head to given register
             POP_REG => {
@@ -222,6 +226,38 @@ impl CPU {
                 }
 
                 self.registers.set_memory_at_u16(reg * 2, value)?;
+                Ok(())
+            }
+            // call a function with literal address
+            CALL_LIT => {
+                let address = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                println!("Call a subroutine at {:#06X} with literal", address);
+
+                self.call(address)?;
+                Ok(())
+            }
+            // call a function with a register value
+            CALL_REG => {
+                let reg = self.fetch_reg()?;
+                let address = self.registers.get_memory_at_u16(reg * 2)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Call a subroutine at {:#06X} (stored in register {})", address, reg_name);
+                }
+
+                self.call(address)?;
+                Ok(())
+            }
+            // return from subroutine
+            RET => {
+                #[cfg(debug_assertions)]
+                println!("Return from a subroutine");
+
+                self.restor()?;
                 Ok(())
             }
             // Xor register with other register
@@ -272,10 +308,11 @@ impl CPU {
         }
     }
 
-    fn push(&mut self, value: u16) -> Result<(), ExecutionError> {
+    fn push(&mut self, value: u16) -> Result<(), MemoryError> {
         let sp_address = self.get_register("sp")?;
         self.memory.set_memory_at_u16(sp_address as usize, value)?;
 
+        self.stack_frame_size += 2;
         self.set_register("sp", sp_address - 2)?;
         Ok(())  
     }
@@ -284,7 +321,57 @@ impl CPU {
         let head = self.get_register("sp")? + 2;
         self.set_register("sp", head)?;
 
+        self.stack_frame_size -= 2;
         Ok(self.memory.get_memory_at_u16(head as usize)?)
+    }
+
+    // This methode save all registers in the stack and create a new stackframe.
+    // Once the stackframe is created, the function jump to `address` given
+    fn call(&mut self, address: u16) -> Result<(), MemoryError> {
+        let reg_to_save = ["r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "ip"];
+
+        // save all registers from R1 to R8 plus ip
+        for reg in reg_to_save.iter() {
+            self.push(self.get_register(reg)?)?;
+        }
+
+        // Save the size of the stackframe
+        self.push(self.stack_frame_size as u16 + 2)?;
+
+        // create a new stackframe
+        self.set_register("fp", self.get_register("sp")?)?;
+        self.stack_frame_size = 0;
+
+        // jump to given address
+        self.set_register("ip", address)?;
+        Ok(())
+    }
+
+    // This methode save all registers in the stack and create a new stackframe.
+    // Once the stackframe is created, the function jump to `address` given
+    fn restor(&mut self) -> Result<(), MemoryError> {
+        // erase the current stackframe
+        let fp_addr = self.get_register("fp")?;
+        self.set_register("sp", fp_addr)?;
+
+        // Restor the stackframe size and update start of stackframe 
+        let sf_size = self.pop()?;
+        self.stack_frame_size = sf_size as usize;
+        self.set_register("fp", sf_size)?;
+
+        // Restor all registers, in reverse order than `call` do
+        let reg_to_load = ["ip", "r8", "r7", "r6", "r5", "r4", "r3", "r2", "r1"];
+        for reg in reg_to_load.iter() {
+            let stack_value  = self.pop()?;
+            self.set_register(reg, stack_value)?;
+        }
+
+        // in ep004 at 13:33, we can see a part of code that pop "args"
+        // 0x4F don't realy understand what that shit mean and decide
+        // to not reproduce this code here. He expect that the
+        // `Kink kryod` understand this and don't decide to kill him.
+
+        Ok(())
     }
 
     pub fn step(&mut self) -> bool {
