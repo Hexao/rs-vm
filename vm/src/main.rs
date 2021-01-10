@@ -4,7 +4,7 @@ mod test;
 use crate::component::cpu::CPU;
 use arch::{
     instructions::*,
-    register::{R1, R2, R3, R4},
+    registers::{R1, R2, R3, R4},
 };
 
 fn main() {

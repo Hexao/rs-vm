@@ -18,7 +18,7 @@ mod tests {
         use crate::component::cpu::CPU;
         use arch::{
             instructions::*,
-            register::{ACC, R1, R2},
+            registers::{ACC, R1, R2},
         };
 
         let mut cpu = CPU::new(0x40);
@@ -43,7 +43,7 @@ mod tests {
         use crate::component::cpu::CPU;
         use arch::{
             instructions::*,
-            register::{ACC, R1, R2},
+            registers::{ACC, R1, R2},
         };
 
         let mut cpu = CPU::new(0xFF);
@@ -83,7 +83,7 @@ mod tests {
         use crate::component::cpu::CPU;
         use arch::{
             instructions::*,
-            register::{R1, R2},
+            registers::{R1, R2},
         };
 
         let mut cpu = CPU::new(0x20);
@@ -105,14 +105,15 @@ mod tests {
         assert_eq!(cpu.get_register("sp").unwrap(), 0x001E);
     }
 
+    #[test]
     fn call_subroutine() {
         use crate::component::cpu::CPU;
         use arch::{
             instructions::*,
-            register::{R1, R2, R3, R4},
+            registers::{R1, R2, R3, R4},
         };
 
-        let mut cpu = CPU::new(0x40);
+        let mut cpu = CPU::new(0x48);
         let instructions = [
             MOV_LIT_REG, 0x11, 0x11, R1, // 0x0000
             MOV_LIT_REG, 0x33, 0x33, R3, // 0x0004
