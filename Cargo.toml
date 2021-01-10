@@ -1,6 +1,8 @@
 [workspace]
 
+default-members = ["vm", "compiler"]
 members = [
     "vm",
     "arch",
+    "compiler",
 ]
