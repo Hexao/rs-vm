@@ -1,0 +1,7 @@
+start:
+    mov 1 r2
+loop:
+    mov acc r1
+    add r1 r2
+    jne 0b10 loop
+    end

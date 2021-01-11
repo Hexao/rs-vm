@@ -1,7 +1,7 @@
+use std::io::{self, BufRead, prelude::*};
+use std::{collections::HashMap, fs::File};
 use structopt::StructOpt;
 use structs::Ins;
-use std::{collections::HashMap, fs::File};
-use std::io::{self, BufRead};
 mod structs;
 
 #[derive(StructOpt)]
@@ -12,12 +12,11 @@ pub struct Args {
 }
 
 fn main() {
-    // let args: Args = Args::from_args();
+    let args: Args = Args::from_args();
     let input_dir = "data/scripts/";
     let out_dir = "data/output/";
-    let file_name = "mv_reg";
 
-    let file = File::open(format!("{}{}.vms", input_dir, file_name)).unwrap();
+    let file = File::open(format!("{}{}.vms", input_dir, args.input)).unwrap();
     let file = io::BufReader::new(file).lines();
     let mut jumps_pts = HashMap::new();
     let mut cmds = Vec::with_capacity(10);
@@ -25,8 +24,6 @@ fn main() {
 
     for line in file {
         if let Some(cmd) = Ins::build_with_line(line.unwrap()) {
-            // println!("{:?}", cmd);
-
             if let Ins::Flag(flag) = &cmd {
                 jumps_pts.insert(flag.to_owned(), ptr as u16);
                 continue;
@@ -46,8 +43,9 @@ fn main() {
                 return;
             }
         }
-        
     }
 
-    println!("{:?}", res);
+    let out_file = args.out.unwrap_or(args.input);
+    let mut out_file = File::create(format!("{}{}.vmo", out_dir, out_file)).unwrap();
+    out_file.write_all(&res).unwrap();
 }
