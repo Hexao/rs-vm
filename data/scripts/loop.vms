@@ -1,7 +1,6 @@
 start:
-    mov 1 r2
+    mov 1 r1
 loop:
-    mov acc r1
-    add r1 r2
+    add acc r1
     jne 0b10 loop
     end

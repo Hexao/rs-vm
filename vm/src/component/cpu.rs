@@ -24,8 +24,10 @@ impl CPU {
             });
 
         let mut registers = Memory::new(REGISTER_NAMES.len() * 2);
-        registers.set_memory_at_u16(10*2, (memory - 2) as u16).unwrap(); // 10 is the index of SP; - 1 for the length and -1 because 2 bytes
-        registers.set_memory_at_u16(11*2, (memory - 2) as u16).unwrap(); // 11 is the index of FP; - 1 for the length and -1 because 2 bytes
+        // 10 is the index of SP; - 1 for the length and -1 because 2 bytes
+        registers.set_memory_at_u16(10 * 2, (memory - 2) as u16).unwrap();
+        // 11 is the index of FP; - 1 for the length and -1 because 2 bytes
+        registers.set_memory_at_u16(11 * 2, (memory - 2) as u16).unwrap();
 
         Self {
             memory: Memory::new(memory),
@@ -54,12 +56,11 @@ impl CPU {
     pub fn print_registers(&self) {
         print!("Label            : "); // gap to align text
         for label in REGISTER_NAMES {
-            print!("{: <7}", label);
+            print!("{:<7}", label);
         }
-        print!("\n");
+        println!();
 
-        self.registers
-            .print_memory_chunk_u16(0, REGISTER_NAMES.len() * 2);
+        self.registers.print_memory_chunk_u16(0, REGISTER_NAMES.len() * 2);
     }
 
     pub fn fetch_reg(&mut self) -> Result<usize, MemoryError> {
@@ -398,11 +399,31 @@ impl CPU {
     }
 
     pub fn print_memory_chunk_u8(&self, start: usize, end: usize) {
-        self.memory.print_memory_chunk_u8(start, end);
+        let memory_len = self.memory.len();
+        let end = if end < memory_len { end } else { memory_len };
+
+        print!("Memory at {:#06X} :", start);
+        for address in start..end {
+            match self.memory.get_memory_at_u8(address) {
+                Ok(data) if data > 0 => print!(" {:#04X}", data),
+                _ => print!(" 0x--"),
+            }
+        }
+        println!();
     }
 
     pub fn print_memory_chunk_u16(&self, start: usize, end: usize) {
-        self.memory.print_memory_chunk_u16(start, end);
+        let memory_len = self.memory.len();
+        let end = if end < memory_len { end } else { memory_len };
+
+        print!("Memory at {:#06X} :", start);
+        for address in (start..end).step_by(2) {
+            match self.memory.get_memory_at_u16(address) {
+                Ok(data) if data > 0 => print!(" {:#06X}", data),
+                _ => print!(" 0x----"),
+            }
+        }
+        println!();
     }
 }
 
