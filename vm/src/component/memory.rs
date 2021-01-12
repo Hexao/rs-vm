@@ -69,20 +69,7 @@ impl Memory {
         self.data.len()
     }
 
-    pub fn print_memory_chunk_u8(&self, start: usize, end: usize) {
-        let memory_len = self.data.len();
-        let end = if end < memory_len { end } else { memory_len };
-
-        print!("Memory at {:#06X} :", start);
-        for address in start..end {
-            match self.get_memory_at_u8(address) {
-                Ok(data) if data > 0 => print!(" {:#04X}", data),
-                _ => print!(" 0x--"),
-            }
-        }
-        print!("\n")
-    }
-
+    // keep this function to print registers in cpu.rs
     pub fn print_memory_chunk_u16(&self, start: usize, end: usize) {
         let memory_len = self.data.len();
         let end = if end < memory_len { end } else { memory_len };
@@ -94,7 +81,7 @@ impl Memory {
                 _ => print!(" 0x----"),
             }
         }
-        print!("\n")
+        println!();
     }
 }
 
