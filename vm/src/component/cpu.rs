@@ -41,7 +41,7 @@ impl CPU {
         let reg_pointer = self
             .register_map
             .get(name)
-            .expect(&format!("Register {} does not exist", name));
+            .unwrap_or_else(|| panic!("Register {} does not exist", name));
         self.registers.get_memory_at_u16(*reg_pointer)
     }
 
@@ -49,7 +49,7 @@ impl CPU {
         let reg_pointer = self
             .register_map
             .get(name)
-            .expect(&format!("Register {} does not exist", name));
+            .unwrap_or_else(|| panic!("Register {} does not exist", name));
         self.registers.set_memory_at_u16(*reg_pointer, data)
     }
 
@@ -391,10 +391,8 @@ impl CPU {
 
     // DEBUG FUNCTION DO NOT LEAVE IN RELEASE
     pub fn set_instruction(&mut self, instructions: &[u8]) {
-        let mut pointer = 0;
-        for i in instructions {
-            let _ = self.memory.set_memory_at_u8(pointer, *i);
-            pointer += 1;
+        for (id, ins) in instructions.iter().enumerate() {
+            self.memory.set_memory_at_u8(id, *ins).unwrap();
         }
     }
 
@@ -442,9 +440,9 @@ impl From<MemoryError> for ExecutionError {
 impl std::fmt::Debug for ExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let error = match self {
-            ExecutionError::BadMemoryAccess => format!("CPU try to access not allowed memory chunk !"),
+            ExecutionError::BadMemoryAccess => "CPU try to access not allowed memory chunk !".to_owned(),
             ExecutionError::UnexpectedInstruction(ins) => format!("Instruction {:#04X} is not permitted", ins),
-            ExecutionError::EndOfExecution => format!("CPU reaches end of executable code"),
+            ExecutionError::EndOfExecution => "CPU reaches end of executable code".to_owned(),
         };
 
         write!(f, "{}", error)
