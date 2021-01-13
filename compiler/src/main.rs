@@ -46,7 +46,9 @@ fn main() {
     }
 
     let out_file = args.out.unwrap_or(args.input);
-    std::fs::create_dir_all(out_dir).expect(&format!("can't create dir '{}'", out_dir));
+    std::fs::create_dir_all(out_dir).unwrap_or_else(|_|
+        panic!("can't create dir '{}'", out_dir)
+    );
     let mut out_file = File::create(format!("{}{}.vmo", out_dir, out_file)).unwrap();
     out_file.write_all(&res).unwrap();
 }
