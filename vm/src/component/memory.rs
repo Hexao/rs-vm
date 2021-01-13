@@ -69,6 +69,10 @@ impl Memory {
         self.data.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     // keep this function to print registers in cpu.rs
     pub fn print_memory_chunk_u16(&self, start: usize, end: usize) {
         let memory_len = self.data.len();
