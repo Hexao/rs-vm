@@ -1,3 +1,5 @@
+use crate::component::memory_io::*;
+
 /// Memory struct is the physical representation of the VM
 pub struct Memory {
     /// The data vector that is our memory
@@ -26,49 +28,12 @@ impl Memory {
         }
     }
 
-    /// Get the memory cell from the `data` given a `location`
-    pub fn get_memory_at_u8(&self, location: usize) -> Result<u8, MemoryError> {
-        #[cfg(debug_assertions)]
-        if location >= self.data.len() {
-            return Err(MemoryError::OutOfBounds(location));
-        }
-
-        Ok(self.data[location])
-    }
-
-    /// Get two memory cell from the `data` given a `location`
-    pub fn get_memory_at_u16(&self, location: usize) -> Result<u16, MemoryError> {
-        let left = self.get_memory_at_u8(location)?;
-        let right = self.get_memory_at_u8(location + 1)?;
-
-        Ok(((left as u16) << 8) + (right as u16))
-    }
-
-    /// Set the memory cell from the `data` given a `location`
-    pub fn set_memory_at_u8(&mut self, location: usize, value: u8) -> Result<(), MemoryError> {
-        #[cfg(debug_assertions)]
-        if location >= self.data.len() {
-            return Err(MemoryError::OutOfBounds(location));
-        }
-
-        self.data[location] = value;
-        Ok(())
-    }
-
-    /// Set two memory cell from the `data` given a `location`
-    pub fn set_memory_at_u16(&mut self, location: usize, value: u16) -> Result<(), MemoryError> {
-        let left = (value >> 8) as u8;
-        let right = (value % 0x100) as u8;
-
-        self.set_memory_at_u8(location + 1, right)?;
-        self.set_memory_at_u8(location, left)
-    }
-
     /// Return the size of the memory allocated
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
+    /// return true if memory len is 0 byte
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
@@ -89,19 +54,42 @@ impl Memory {
     }
 }
 
-/// Enumeration of every type of memory error
-pub enum MemoryError {
-    OutOfBounds(usize),
-}
+impl MemoryIO for Memory {
+    /// Get the memory cell from the `data` given a `location`
+    fn get_memory_at_u8(&self, location: usize) -> Result<u8, MemoryError> {
+        #[cfg(debug_assertions)]
+        if location >= self.data.len() {
+            return Err(MemoryError::OutOfBounds(location));
+        }
 
-impl std::fmt::Debug for MemoryError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let error = match self {
-            MemoryError::OutOfBounds(address) => {
-                format!("The address {:#04X} is not in the memory", address)
-            }
-        };
+        Ok(self.data[location])
+    }
 
-        write!(f, "{}", error)
+    /// Get two memory cell from the `data` given a `location`
+    fn get_memory_at_u16(&self, location: usize) -> Result<u16, MemoryError> {
+        let right = self.get_memory_at_u8(location + 1)?;
+        let left = self.get_memory_at_u8(location)?;
+
+        Ok(((left as u16) << 8) + (right as u16))
+    }
+
+    /// Set the memory cell from the `data` given a `location`
+    fn set_memory_at_u8(&mut self, location: usize, value: u8) -> Result<(), MemoryError> {
+        #[cfg(debug_assertions)]
+        if location >= self.data.len() {
+            return Err(MemoryError::OutOfBounds(location));
+        }
+
+        self.data[location] = value;
+        Ok(())
+    }
+
+    /// Set two memory cell from the `data` given a `location`
+    fn set_memory_at_u16(&mut self, location: usize, value: u16) -> Result<(), MemoryError> {
+        let left = (value >> 8) as u8;
+        let right = (value % 0x100) as u8;
+
+        self.set_memory_at_u8(location + 1, right)?;
+        self.set_memory_at_u8(location, left)
     }
 }

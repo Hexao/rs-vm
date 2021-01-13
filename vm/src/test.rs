@@ -68,6 +68,8 @@ mod tests {
     #[test]
     fn memory_test() {
         use crate::component::memory::Memory;
+        use crate::component::memory_io::MemoryIO;
+
         let mut m = Memory::new(0x40);
         m.set_memory_at_u8(0x01, 0x01).unwrap();
         m.set_memory_at_u8(0x05, 0x20).unwrap();

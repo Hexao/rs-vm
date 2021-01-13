@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use crate::component::memory::{Memory, MemoryError};
+use crate::component::memory::Memory;
 use arch::registers::REGISTER_NAMES;
+use crate::component::memory_io::*;
 use arch::instructions::*;
 
 /// CPU struct that will be the "head" of the VM.
