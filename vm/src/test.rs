@@ -4,7 +4,7 @@ mod tests {
     fn cpu_register_test() {
         use crate::component::cpu::CPU;
 
-        let mut cpu = CPU::new(0x40);
+        let mut cpu = CPU::new();
 
         cpu.set_register("r1", 0x8574).unwrap();
         cpu.set_register("r6", 0x20).unwrap();
@@ -21,7 +21,7 @@ mod tests {
             registers::{ACC, R1, R2},
         };
 
-        let mut cpu = CPU::new(0x40);
+        let mut cpu = CPU::new();
 
         let instructions = [
             MOV_LIT_REG, 0xFF, 0xFF, R1,  // move 0xFFFF in r1 (16 bit)
@@ -46,7 +46,7 @@ mod tests {
             registers::{ACC, R1, R2},
         };
 
-        let mut cpu = CPU::new(0xFF);
+        let mut cpu = CPU::new();
 
         let instructions = [
             MOV_LIT_REG, 0x00, 0x01, R2,         // move 0x0001 in r2 (16 bit)
@@ -88,7 +88,7 @@ mod tests {
             registers::{R1, R2},
         };
 
-        let mut cpu = CPU::new(0x20);
+        let mut cpu = CPU::new();
         let instructions = [
             MOV_LIT_REG, 0x00, 0x4F, R1,
             MOV_LIT_REG, 0xF4, 0x00, R2,
@@ -104,7 +104,7 @@ mod tests {
 
         assert_eq!(cpu.get_register("r1").unwrap(), 0xF400);
         assert_eq!(cpu.get_register("r2").unwrap(), 0x004F);
-        assert_eq!(cpu.get_register("sp").unwrap(), 0x001E);
+        assert_eq!(cpu.get_register("sp").unwrap(), 0xFFFE);
     }
 
     #[test]
@@ -115,7 +115,7 @@ mod tests {
             registers::{R1, R2, R3, R4},
         };
 
-        let mut cpu = CPU::new(0x48);
+        let mut cpu = CPU::new();
         let instructions = [
             MOV_LIT_REG, 0x11, 0x11, R1, // 0x0000
             MOV_LIT_REG, 0x33, 0x33, R3, // 0x0004

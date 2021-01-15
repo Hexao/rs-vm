@@ -12,8 +12,8 @@ pub struct Args {
 }
 
 fn main() {
+    let mut cpu = CPU::new();
     let memory_capacity = 0xFF;
-    let mut cpu = CPU::new(memory_capacity);
     let mut instructions = Vec::with_capacity(memory_capacity);
     
     let dir = "data/output/";

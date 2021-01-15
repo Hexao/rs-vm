@@ -28,16 +28,6 @@ impl Memory {
         }
     }
 
-    /// Return the size of the memory allocated
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    /// return true if memory len is 0 byte
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-
     // keep this function to print registers in cpu.rs
     pub fn print_memory_chunk_u16(&self, start: usize, end: usize) {
         let memory_len = self.data.len();
@@ -91,5 +81,15 @@ impl MemoryIO for Memory {
 
         self.set_memory_at_u8(location + 1, right)?;
         self.set_memory_at_u8(location, left)
+    }
+
+    /// Return the size of the memory allocated
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// return true if memory len is 0 byte
+    fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 }

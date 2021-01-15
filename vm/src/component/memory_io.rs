@@ -3,6 +3,9 @@ pub trait MemoryIO {
     fn get_memory_at_u16(&self, location: usize) -> Result<u16, MemoryError>;
     fn set_memory_at_u8(&mut self, location: usize, data: u8) -> Result<(), MemoryError>;
     fn set_memory_at_u16(&mut self, location: usize, data: u16) -> Result<(), MemoryError>;
+
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool;
 }
 
 /// Enumeration of every type of memory error
