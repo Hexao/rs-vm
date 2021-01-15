@@ -42,6 +42,6 @@ fn main() {
     cpu.set_instruction(&instructions);
     while cpu.step() {
         cpu.print_registers();
-        cpu.print_memory_chunk_u16(0x49, 0x58);
+        cpu.print_memory_chunk_u16(0xF0, 0xFF);
     }
 }

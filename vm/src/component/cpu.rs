@@ -105,6 +105,17 @@ impl CPU {
                 self.registers.set_memory_at_u16(reg * 2, literal)?;
                 Ok(())
             }
+            // Move literal directly in the memory
+            MOV_LIT_MEM => {
+                let literal = self.fetch_u16()?;
+                let memory = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                println!("Move {:#06X} (literal) in {:#06X} (memory)", literal, memory);
+
+                self.memory.set_memory_at_u16(memory as usize, literal)?;
+                Ok(())
+            }
             // Move register value into a specific register
             MOV_REG_REG => {
                 let reg_from = self.fetch_reg()?;
@@ -149,6 +160,46 @@ impl CPU {
 
                 let mem_value = self.memory.get_memory_at_u16(memory_address)?;
                 self.registers.set_memory_at_u16(reg * 2, mem_value)?;
+                Ok(())
+            }
+            // Move a memory address pointed by register in register
+            MOV_PTRREG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                let memory_loc = self.registers.get_memory_at_u16(r1 * 2)?;
+                let memory_val = self.memory.get_memory_at_u16(memory_loc as usize)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1_name = REGISTER_NAMES[r1];
+                    let r2_name = REGISTER_NAMES[r2];
+                    println!("Move value {:#06X} from memory {:#06X} pointed by {} to register {}",
+                        memory_val, memory_loc, r1_name, r2_name
+                    );
+                }
+
+                self.registers.set_memory_at_u16(r2 * 2, memory_val)?;
+                Ok(())
+            }
+            // Move value from register to memory address pointed by register
+            MOV_REG_PTRREG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                let val = self.registers.get_memory_at_u16(r1 * 2)?;
+                let memory_loc = self.registers.get_memory_at_u16(r2 * 2)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1_name = REGISTER_NAMES[r1];
+                    let r2_name = REGISTER_NAMES[r2];
+                    println!("Move {} into memory {:#06X} pointed by {}",
+                        r1_name, memory_loc, r2_name
+                    );
+                }
+
+                self.memory.set_memory_at_u16(memory_loc as usize, val)?;
                 Ok(())
             }
             // Jump to provided memory address if literal not equal to accumulator value
@@ -349,6 +400,9 @@ impl CPU {
         // erase the current stackframe
         let fp_addr = self.get_register("fp")?;
         self.set_register("sp", fp_addr)?;
+
+        // set stack_frame_size to 2 to avoid neg number on pop
+        self.stack_frame_size = 2;
 
         // Restor the stackframe size and update start of stackframe 
         let sf_size = self.pop()?;
