@@ -426,6 +426,12 @@ impl CPU {
     }
 }
 
+impl Default for CPU {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 enum ExecutionError {
     BadMemoryAccess,
     UnexpectedInstruction(u8),
