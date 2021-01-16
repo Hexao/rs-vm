@@ -19,13 +19,13 @@ fn main() {
     let file = File::open(format!("{}{}.vms", input_dir, args.input)).unwrap();
     let file = io::BufReader::new(file).lines();
     let mut cmds = Vec::with_capacity(10);
-    let mut stard_address = 0;
+    let mut start_address = 0;
 
     for (id, line) in file.enumerate() {
         if let Some(cmd) = Ins::build_with_line(line.unwrap()) {
             if let Ins::Flag(flag) = &cmd {
-                if stard_address == 0 && flag == "start" {
-                    stard_address = cmds.len();
+                if start_address == 0 && flag == "start" {
+                    start_address = cmds.len();
                 }
             }
             cmds.push((cmd, id + 1));
@@ -38,7 +38,7 @@ fn main() {
 
     // parse Ins and find address for all flags
     for id in 0..cmds_len {
-        let id = (stard_address + id) % cmds_len;
+        let id = (start_address + id) % cmds_len;
         let (cmd, line) = &cmds[id];
 
         if let Ins::Flag(flag) = cmd {
@@ -58,7 +58,7 @@ fn main() {
 
     // iteratr trough Ins and produce exec code
     for id in 0..cmds_len {
-        let id = (stard_address + id) % cmds_len;
+        let id = (start_address + id) % cmds_len;
         let (cmd, line) = &cmds[id];
 
         match cmd.get_code(&jumps_pts) {

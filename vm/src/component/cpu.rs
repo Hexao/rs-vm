@@ -3,41 +3,21 @@ use std::collections::HashMap;
 use crate::component::memory::Memory;
 use arch::registers::REGISTER_NAMES;
 use crate::component::memory_io::*;
+use super::memory_map::MemoryMap;
+use super::screen::Screen;
 use arch::instructions::*;
+
 
 /// CPU struct that will be the "head" of the VM.
 /// It handles everything from memory pointers to executing incomming instructions
 pub struct CPU {
-    memory: Memory,
+    memory: MemoryMap,
     registers: Memory,
     stack_frame_size: usize,
     register_map: HashMap<&'static str, usize>,
 }
 
 impl CPU {
-    pub fn new() -> Self {
-        let register_map = REGISTER_NAMES
-            .to_vec()
-            .iter()
-            .fold(HashMap::new(), |mut map, s| {
-                let _ = map.insert(*s, map.len() * 2);
-                map
-            });
-
-        let mut registers = Memory::new(REGISTER_NAMES.len() * 2);
-        // 10 is the index of SP; - 1 for the length and -1 because 2 bytes
-        registers.set_memory_at_u16(10 * 2, (0xFFFF - 1) as u16).unwrap();
-        // 11 is the index of FP; - 1 for the length and -1 because 2 bytes
-        registers.set_memory_at_u16(11 * 2, (0xFFFF - 1) as u16).unwrap();
-
-        Self {
-            memory: Memory::new(0x1_0000),
-            registers,
-            stack_frame_size: 0,
-            register_map,
-        }
-    }
-
     pub fn get_register(&self, name: &'static str) -> Result<u16, MemoryError> {
         let reg_pointer = self
             .register_map
@@ -482,7 +462,31 @@ impl CPU {
 
 impl Default for CPU {
     fn default() -> Self {
-        Self::new()
+        let mut memory = MemoryMap::default();
+        let screen = Screen::new(64, 64);
+        memory.add_device(Box::new(screen), 0x3000);
+
+        let mut registers = Memory::new(REGISTER_NAMES.len() * 2);
+        // 10 is the index of SP; - 1 for the length and -1 because 2 bytes
+        registers.set_memory_at_u16(10 * 2, (0xFFFF - 1) as u16).unwrap();
+        // 11 is the index of FP; - 1 for the length and -1 because 2 bytes
+        registers.set_memory_at_u16(11 * 2, (0xFFFF - 1) as u16).unwrap();
+        
+        let register_map = REGISTER_NAMES
+            .to_vec()
+            .iter()
+            .fold(HashMap::new(), |mut map, s| {
+                let _ = map.insert(*s, map.len() * 2);
+                map
+            }
+        );
+
+        Self {
+            memory,
+            registers,
+            stack_frame_size: 0,
+            register_map,
+        }
     }
 }
 
