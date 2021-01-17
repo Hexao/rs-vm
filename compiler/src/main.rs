@@ -18,35 +18,63 @@ fn main() {
 
     let file = File::open(format!("{}{}.vms", input_dir, args.input)).unwrap();
     let file = io::BufReader::new(file).lines();
-    let mut jumps_pts = HashMap::new();
     let mut cmds = Vec::with_capacity(10);
-    let mut ptr = 0;
+    let mut start_address = 0;
 
-    for line in file {
+    for (id, line) in file.enumerate() {
         if let Some(cmd) = Ins::build_with_line(line.unwrap()) {
             if let Ins::Flag(flag) = &cmd {
-                jumps_pts.insert(flag.to_owned(), ptr as u16);
-                continue;
+                if start_address == 0 && flag == "start" {
+                    start_address = cmds.len();
+                }
             }
-
-            ptr += cmd.len();
-            cmds.push(cmd);
+            cmds.push((cmd, id + 1));
         }
     }
 
+    let mut ptr = 0;
+    let cmds_len = cmds.len();
+    let mut jumps_pts = HashMap::new();
+
+    // parse Ins and find address for all flags
+    for id in 0..cmds_len {
+        let id = (start_address + id) % cmds_len;
+        let (cmd, line) = &cmds[id];
+
+        if let Ins::Flag(flag) = cmd {
+            match jumps_pts.insert(flag.to_owned(), ptr as u16) {
+                None => (),
+                Some(_) => {
+                    eprintln!("Duplicate flag {} on line {}", flag, line);
+                    return;
+                }
+            }
+        }
+
+        ptr += cmd.len();
+    }
+
     let mut res = Vec::with_capacity(ptr);
-    for cmd in cmds {
+
+    // iteratr trough Ins and produce exec code
+    for id in 0..cmds_len {
+        let id = (start_address + id) % cmds_len;
+        let (cmd, line) = &cmds[id];
+
         match cmd.get_code(&jumps_pts) {
             Ok(mut byts) => res.append(&mut byts),
             Err(s) => {
-                eprintln!("Error while compiling : {}", s);
+                eprintln!("Error while compiling on line {} : {}", line, s);
+                println!("{:?}", res);
                 return;
             }
         }
     }
 
     let out_file = args.out.unwrap_or(args.input);
-    std::fs::create_dir_all(out_dir).expect(&format!("can't create dir '{}'", out_dir));
+    std::fs::create_dir_all(out_dir).unwrap_or_else(|_|
+        panic!("can't create dir '{}'", out_dir)
+    );
     let mut out_file = File::create(format!("{}{}.vmo", out_dir, out_file)).unwrap();
     out_file.write_all(&res).unwrap();
 }

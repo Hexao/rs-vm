@@ -1,0 +1,16 @@
+; swap value in memory address
+; pointed by r1 ad r2
+swap_mem:
+    mov *r1 r3
+    mov *r2 r4
+    mov r3 *r2
+    mov r4 *r1
+    ret
+
+start:
+    mov 0x004F #0x00F0
+    mov 0x0069 #0x00F2
+    mov 0x00F0 r1
+    mov 0x00F2 r2
+    cal swap_mem
+    end

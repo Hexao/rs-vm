@@ -86,6 +86,10 @@ impl Ins {
             Ins::Mov(Param::Lit(lit), Param::Reg(reg)) => {
                 Ok(vec![MOV_LIT_REG, (lit >> 8) as u8, (lit & 0xFF) as u8, *reg])
             }
+            // MOV_LIT_MEM
+            Ins::Mov(Param::Lit(lit), Param::Mem(mem)) => {
+                Ok(vec![MOV_LIT_MEM, (lit >> 8) as u8, (lit & 0xFF) as u8, (mem >> 8) as u8, (mem & 0xFF) as u8])
+            }
             // MOV_REG_REG
             Ins::Mov(Param::Reg(r1), Param::Reg(r2)) => Ok(vec![MOV_REG_REG, *r1, *r2]),
             // MOV_REG_MEM
@@ -96,6 +100,16 @@ impl Ins {
             Ins::Mov(Param::Mem(mem), Param::Reg(reg)) => {
                 Ok(vec![MOV_MEM_REG, (mem >> 8) as u8, (mem & 0xFF) as u8, *reg])
             }
+            // MOV_PTRREG_REG
+            Ins::Mov(Param::Ptr(ptr), Param::Reg(r2)) => match ptr.as_ref() {
+                Param::Reg(r1) => Ok(vec![MOV_PTRREG_REG, *r1, *r2]),
+                p => Err(format!("no instruction MOV_PTR{}_REG on this proc", p)),
+            },
+            // MOV_REG_PTRREG
+            Ins::Mov(Param::Reg(r1), Param::Ptr(ptr)) => match ptr.as_ref() {
+                Param::Reg(r2) => Ok(vec![MOV_REG_PTRREG, *r1, *r2]),
+                p => Err(format!("no instruction MOV_REG_PTR{} on this proc", p)),
+            },
             // Return an error if mov operation don't existe
             Ins::Mov(p1, p2) => Err(format!("no instruction MOV_{}_{} on this proc", p1, p2)),
 
@@ -156,10 +170,8 @@ impl Ins {
 
             // END
             Ins::End => Ok(vec![END]),
-            ins => {
-                println!("{:?}", ins);
-                Ok(vec![END])
-            },
+            Ins::Flag(_) => Ok(vec![]),
+            ins => Err(format!("found an unknow instructions : {:?}", ins)),
         }
     }
 
@@ -182,6 +194,7 @@ impl Ins {
 #[derive(Debug)]
 pub enum Param {
     Flag(String),
+    Ptr(Box<Param>),
     Lit(u16),
     Mem(u16),
     Reg(u8),
@@ -206,9 +219,16 @@ impl Param {
 
         let v0 = &*val.get(0..1).unwrap();
         let memory = v0 == "#";
+        let ptr = v0 == "*";
 
         let v1_offset = if memory { 1 } else { 0 };
         let v1 = &*val.get(v1_offset..v1_offset + 2).unwrap();
+
+        if ptr {
+            return Param::Ptr(
+                Box::from(Param::build_with_value(val.get(1..).unwrap()))
+            )
+        }
 
         match v1 {
             "0x" => {
@@ -244,6 +264,7 @@ impl Param {
         match self {
             Param::Flag(_) => 2,
             Param::Reg(_) => 1,
+            Param::Ptr(p) => p.len(),
             Param::Lit(_) | Param::Mem(_) => 2,
         }
     }
@@ -252,10 +273,11 @@ impl Param {
 impl std::fmt::Display for Param {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let param = match self {
-            Param::Flag(_) => "FLAG",
-            Param::Lit(_) => "LIT",
-            Param::Mem(_) => "MEM",
-            Param::Reg(_) => "REG",
+            Param::Flag(_) => "FLAG".to_owned(),
+            Param::Ptr(p) => format!("PTR{}", p),
+            Param::Lit(_) => "LIT".to_owned(),
+            Param::Mem(_) => "MEM".to_owned(),
+            Param::Reg(_) => "REG".to_owned(),
         };
 
         write!(f, "{}", param)
