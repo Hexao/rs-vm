@@ -1,9 +1,11 @@
 use crate::component::memory_io::*;
+use std::cmp::Ordering;
 use super::memory_io;
 
 pub struct Screen {
     height: usize,
     width: usize,
+    row: usize,
 }
 
 impl Screen {
@@ -11,39 +13,51 @@ impl Screen {
     pub const CLEAR: u8 = 0xFF;
 
     pub fn new(width: usize, height: usize) -> Self {
-        Self { height, width }
+        Self { height, width, row: 1 }
     }
 
     /// place the cursor in the cell (x, y).
     /// `x` and `y` must be greater than one
-    fn move_to(x: usize, y: usize) {
-        print!("\x1B[{};{}H", y, x);
+    fn move_to(&mut self, x: usize, y: usize) {
+        self.move_row(y);
+        self.move_col(x);
     }
 
     /// move the curson in the column
     /// `col` without changing the row
-    fn move_col(col: usize) {
+    fn move_col(&mut self, col: usize) {
         print!("\x1b[{}G", col);
+    }
+
+    fn move_row(&mut self, row: usize) {
+        match row.cmp(&self.row) {
+            Ordering::Greater => print!("\x1B[{}E", row - self.row),
+            Ordering::Less => print!("\x1B[{}F", self.row - row),
+            _ => (),
+        }
+
+        self.row = row;
     }
 
     /// clear the entier screen then place
     /// the cursor at the top left corner
-    fn clear() {
-        print!("\x1B[2J");
-        Screen::move_to(1, 1);
+    fn clear(&mut self) {
+        print!("\x1B[2J"); // clear screen
+        print!("\x1B[1;1H"); // move to top left
+        self.row = 1;
     }
 
     /// clear the current line then place the
     /// cursor at the beginning of the line
-    fn clear_line() {
+    fn clear_line(&mut self) {
         print!("\x1B[1K");
-        Screen::move_col(1);
+        self.move_col(1);
     }
 
-    fn exec_code(code: u8) {
+    fn exec_code(&mut self, code: u8) {
         match code {
-            Self::CLEAR_LINE => Self::clear_line(),
-            Self::CLEAR => Self::clear(),
+            Self::CLEAR_LINE => self.clear_line(),
+            Self::CLEAR => self.clear(),
             _ => (),
         }
     }
@@ -60,7 +74,7 @@ impl MemoryIO for Screen {
 
     /// use the data for execute some specific instructions on the screen, ignore location
     fn set_memory_at_u8(&mut self, _location: usize, data: u8) -> Result<(), MemoryError> {
-        Screen::exec_code(data);
+        self.exec_code(data);
 
         Ok(())
     }
@@ -77,11 +91,11 @@ impl MemoryIO for Screen {
             return Err(memory_io::MemoryError::OutOfBounds(location))
         }
 
-        Screen::move_to(x + 1, y + 1);
+        self.move_to(x + 1, y + 1);
         let code = (data >> 8) as u8;
         let character = std::char::from_u32((data & 0xFF) as u32).unwrap();
 
-        Screen::exec_code(code);
+        self.exec_code(code);
         print!("{}", character);
 
         Ok(())
