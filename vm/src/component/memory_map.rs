@@ -15,7 +15,7 @@ impl Region {
 
         if end - 1 > 0xFFFF {
             panic!(
-                "You can't create a region how will overflow memory.\nRegion maped from {:#X} to {:#X}",
+                "You can't create a region that will overflow memory.\nRegion maped from {:#X} to {:#X}",
                 start, end
             );
         }
