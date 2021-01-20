@@ -80,7 +80,7 @@ impl Ins {
         }
     }
 
-    pub fn get_code(&self, register: &HashMap<String, u16>) -> Result<Vec<u8>, String> {
+    pub fn get_code(&self, jmps: &HashMap<String, u16>, vars: Option<&HashMap<String, (Vec<u8>, u16)>>, vars_add: u16) -> Result<Vec<u8>, String> {
         match self {
             // MOV_LIT_REG
             Ins::Mov(Param::Lit(lit), Param::Reg(reg)) => {
@@ -100,9 +100,37 @@ impl Ins {
             Ins::Mov(Param::Mem(mem), Param::Reg(reg)) => {
                 Ok(vec![MOV_MEM_REG, (mem >> 8) as u8, (mem & 0xFF) as u8, *reg])
             }
-            // MOV_PTRREG_REG
+            Ins::Mov(Param::Flag(flag), Param::Reg(reg)) => {
+                if let Some(vars) = vars {
+                    match vars.get(flag) {
+                        Some((_, add)) => {
+                            let var_add = vars_add + *add;
+                            Ok(vec![MOV_LIT_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *reg])
+                        }
+                        None => Err(format!("No variable with name {}", flag))
+                    }
+                } else {
+                    Err(format!("No variable with name {}", flag))
+                }
+            }
+            // MOV_PTR{}_REG
             Ins::Mov(Param::Ptr(ptr), Param::Reg(r2)) => match ptr.as_ref() {
+                // MOV_PTRREG_REG
                 Param::Reg(r1) => Ok(vec![MOV_PTRREG_REG, *r1, *r2]),
+                // MOV_PTR{var}_REG => MOV_MEM_REG
+                Param::Flag(flag) => {
+                    if let Some(vars) = vars {
+                        match vars.get(flag) {
+                            Some((_, add)) => {
+                                let var_add = vars_add + *add;
+                                Ok(vec![MOV_MEM_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *r2])
+                            }
+                            None => Err(format!("No variable with name {}", flag))
+                        }
+                    } else {
+                        Err(format!("No variable with name {}", flag))
+                    }
+                },
                 p => Err(format!("no instruction MOV_PTR{}_REG on this proc", p)),
             },
             // MOV_REG_PTRREG
@@ -120,7 +148,7 @@ impl Ins {
 
             // JNE_LIT_flag
             Ins::Jne(Param::Lit(lit), Param::Flag(flag)) => {
-                match register.get(flag) {
+                match jmps.get(flag) {
                     Some(add) => {
                         Ok(vec![JMP_NOT_EQ, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8])
                     }
@@ -144,11 +172,11 @@ impl Ins {
 
             // CAL_flag
             Ins::Cal(Param::Flag(flag)) => {
-                match register.get(flag) {
+                match jmps.get(flag) {
                     Some(add) => {
                         Ok(vec![CALL_LIT, (add >> 8) as u8, (add & 0xFF) as u8])
                     }
-                    None => Err(format!("CAL_flag: the flag {} dosen't exist", flag))
+                    None => Err(format!("CAL: the flag {} dosen't exist", flag))
                 }
             }
             // CAL_LIT
