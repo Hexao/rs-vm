@@ -35,12 +35,7 @@ impl DataParser {
             let name = unpack_capture!(captures.next().unwrap())?;
             order.push(name.to_owned());
 
-            loop {
-                let next = match captures.next() {
-                    Some(next) => next,
-                    None => break,
-                };
-
+            while let Some(next) = captures.next() {
                 let mut el = match next.get(1) {
                     Some(data) => {
                         let data = data.as_str().encode_utf16().collect::<Vec<u16>>();
@@ -113,7 +108,7 @@ impl DataParser {
         &self.vars
     }
 
-    pub fn to_vec(mut self) -> Vec<u8> {
+    pub fn get_vec(mut self) -> Vec<u8> {
         let data_len = self.data_len();
         let mut vec = Vec::with_capacity(data_len);
 

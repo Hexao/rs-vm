@@ -31,7 +31,7 @@ fn main() {
         if let Ok(line) = line {
             let line = line.trim().to_owned();
 
-            if line.starts_with(';') || line.len() == 0 {
+            if line.starts_with(';') || line.is_empty() {
                 continue;
             }
 
@@ -39,10 +39,8 @@ fn main() {
                 let chunk = Chunk::new(line.get(1..).unwrap().to_owned());
 
                 chunks.push(chunk);
-            } else {
-                if let Some(chunk) = chunks.last_mut() {
-                    chunk.insert_line(line, id + 1);
-                }
+            } else if let Some(chunk) = chunks.last_mut() {
+                chunk.insert_line(line, id + 1);
             }
         }
     }
@@ -74,7 +72,7 @@ fn main() {
     }
 
     let res = match main {
-        Some(main) => match main.to_vec(data) {
+        Some(main) => match main.get_vec(data) {
             Ok(ok) => ok,
             Err(s) => {
                 eprintln!("{}", s);

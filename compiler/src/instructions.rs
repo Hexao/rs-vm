@@ -203,17 +203,17 @@ impl Ins {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn ins_len(&self) -> usize {
         match self {
             Ins::Flag(_) => 0,
-            Ins::Mov(p1, p2) => 1 + p1.len() + p2.len(),
-            Ins::Add(p1, p2) => 1 + p1.len() + p2.len(),
-            Ins::Jne(p1, p2) => 1 + p1.len() + p2.len(),
-            Ins::Psh(p1) => 1 + p1.len(),
-            Ins::Pop(p1) => 1 + p1.len(),
-            Ins::Cal(p1) => 1 + p1.len(),
+            Ins::Mov(p1, p2) => 1 + p1.param_len() + p2.param_len(),
+            Ins::Add(p1, p2) => 1 + p1.param_len() + p2.param_len(),
+            Ins::Jne(p1, p2) => 1 + p1.param_len() + p2.param_len(),
+            Ins::Psh(p1) => 1 + p1.param_len(),
+            Ins::Pop(p1) => 1 + p1.param_len(),
+            Ins::Cal(p1) => 1 + p1.param_len(),
             Ins::Ret => 1,
-            Ins::Xor(p1, p2) => 1 + p1.len() + p2.len(),
+            Ins::Xor(p1, p2) => 1 + p1.param_len() + p2.param_len(),
             Ins::End => 1,
         }
     }
@@ -288,11 +288,11 @@ impl Param {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn param_len(&self) -> usize {
         match self {
             Param::Flag(_) => 2,
             Param::Reg(_) => 1,
-            Param::Ptr(p) => p.len(),
+            Param::Ptr(p) => p.param_len(),
             Param::Lit(_) | Param::Mem(_) => 2,
         }
     }
