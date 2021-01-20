@@ -29,7 +29,7 @@ impl MainParser {
 
         let start_address = match start_address {
             Some(add) => add,
-            None => return Err(format!("Flag start is required to start execution")),
+            None => return Err("Flag start is required to start execution".to_owned()),
         };
 
         let mut ptr = 0;
@@ -42,13 +42,12 @@ impl MainParser {
             let (cmd, line) = &cmds[id];
 
             if let Ins::Flag(flag) = cmd {
-                match jumps_pts.insert(flag.to_owned(), ptr as u16) {
-                    Some(_) => return Err(format!("Duplicate flag {} on line {}", flag, line)),
-                    None => (),
+                if jumps_pts.insert(flag.to_owned(), ptr as u16).is_some() {
+                    return Err(format!("Duplicate flag {} on line {}", flag, line));
                 }
             }
 
-            ptr += cmd.len();
+            ptr += cmd.ins_len();
         }
 
         Ok(Self{ start_address, cmds, jumps_pts })
@@ -58,13 +57,13 @@ impl MainParser {
         let mut len = 0;
 
         for (ins, _) in &self.cmds {
-            len += ins.len();
+            len += ins.ins_len();
         }
 
         len
     }
 
-    pub fn to_vec(self, data: Option<DataParser>) -> Result<Vec<u8>, String> {
+    pub fn get_vec(self, data: Option<DataParser>) -> Result<Vec<u8>, String> {
         let ins_len = self.ins_len();
         let (data_len, vars) = match &data {
             Some(data) => (data.data_len(), Some(data.vars())),
@@ -87,7 +86,7 @@ impl MainParser {
         }
 
         if let Some(data) = data {
-            vec.append(&mut data.to_vec());
+            vec.append(&mut data.get_vec());
         }
 
         Ok(vec)
