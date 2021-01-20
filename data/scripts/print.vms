@@ -1,0 +1,28 @@
+; data section, contain var
+.data
+    hello "Hello, world", 0
+    screen 0x3000
+
+.code
+    start:
+    mov hello r1
+    cal print
+    end
+
+    ; print the string pointed
+    ; by the value in R1
+    print:
+    mov *screen r2
+    mov *r1 acc
+    mov 1 r7
+    mov 2 r8
+    print_loop:
+    mov acc *r2
+    add r1 r8
+    mov acc r1
+    add r2 r7
+    mov acc r2
+    mov *r1 acc
+    jne 0 print_loop
+    ret
+
