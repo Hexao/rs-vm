@@ -1,8 +1,8 @@
 name: Rust
 
 on:
-  push:
-    branches: '**'
+#   push:
+#     branches: '**'
   pull_request:
     branches: '**'
 
@@ -21,6 +21,7 @@ jobs:
     needs: Build
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v2
     - name: Clippy
       run: |
         rustup component add clippy
@@ -30,5 +31,6 @@ jobs:
     needs: Build
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v2
     - name: Run tests
       run: cargo test --verbose
