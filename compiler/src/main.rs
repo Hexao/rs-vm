@@ -3,11 +3,11 @@ use structopt::StructOpt;
 use std::fs::File;
 use chunk::Chunk;
 
-use mainparser::MainParser;
+use codeparser::CodeParser;
 use dataparser::DataParser;
 
 pub mod instructions;
-pub mod mainparser;
+pub mod codeparser;
 pub mod dataparser;
 pub mod chunk;
 
@@ -46,12 +46,12 @@ fn main() {
     }
 
     let mut data = None;
-    let mut main = None;
+    let mut code = None;
 
     for chunk in chunks {
-        match &**chunk.name() { // &** => majik
-            "code" => main = match MainParser::new(chunk) {
-                Ok(main) => Some(main),
+        match chunk.name().as_str() {
+            "code" => code = match CodeParser::new(chunk) {
+                Ok(code) => Some(code),
                 Err(e) => {
                     eprintln!("{}", e);
                     return;
@@ -71,7 +71,7 @@ fn main() {
         }
     }
 
-    let res = match main {
+    let res = match code {
         Some(main) => match main.get_vec(data) {
             Ok(ok) => ok,
             Err(s) => {
@@ -80,7 +80,7 @@ fn main() {
             }
         }
         None => {
-            eprintln!("Error on compilation: '.main' segment is required!");
+            eprintln!("Error on compilation: '.code' segment is required!");
             return;
         }
     };
