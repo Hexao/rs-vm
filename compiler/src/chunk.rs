@@ -7,8 +7,7 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn new(name: String) -> Self {
-        let data = vec![];
-        Self { name, data }
+        Self { name, data: vec![] }
     }
 
     pub fn insert_line(&mut self, line: String, id: usize) {
