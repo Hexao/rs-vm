@@ -97,11 +97,13 @@ impl DataParser {
     }
 
     pub fn data_len(&self) -> usize {
-        let (v, m) = self.vars.get(
-            self.order.last().unwrap()
-        ).unwrap();
-
-        *m as usize + v.len()
+        match self.order.last() {
+            Some(key) => {
+                let (v, m) = self.vars.get(key).unwrap();
+                *m as usize + v.len()
+            },
+            None => 0,
+        }
     }
 
     pub fn vars(&self) -> &HashMap<String, (Vec<u8>, u16)> {

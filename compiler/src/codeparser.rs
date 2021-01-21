@@ -5,25 +5,28 @@ use crate::dataparser::DataParser;
 use crate::instructions::Ins;
 use crate::chunk::Chunk;
 
-pub struct MainParser {
+pub struct CodeParser {
     start_address: usize,
     cmds: Vec<(Ins, usize)>,
     jumps_pts: HashMap<String, u16>,
 }
 
-impl MainParser {
+impl CodeParser {
     pub fn new(chunk: Chunk) -> Result<Self, String> {
         let mut cmds = Vec::with_capacity(10);
         let mut start_address = None;
 
         for (id, line) in chunk.data() {
-            if let Some(cmd) = Ins::build_with_line(line) {
-                if let Ins::Flag(flag) = &cmd {
-                    if start_address == None && flag == "start" {
-                        start_address = Some(cmds.len());
+            match Ins::build_with_line(line) {
+                Ok(cmd) => {
+                    if let Ins::Flag(flag) = &cmd {
+                        if start_address == None && flag == "start" {
+                            start_address = Some(cmds.len());
+                        }
                     }
-                }
-                cmds.push((cmd, id));
+                    cmds.push((cmd, id));
+                },
+                Err(s) => return Err(format!("Error while compiling on line {} : {}", id, s)),
             }
         }
 
@@ -93,7 +96,7 @@ impl MainParser {
     }
 }
 
-impl Display for MainParser {
+impl Display for CodeParser {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, ".main")?;
 

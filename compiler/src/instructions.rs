@@ -16,7 +16,7 @@ pub enum Ins {
 }
 
 impl Ins {
-    pub fn build_with_line(line: String) -> Option<Self> {
+    pub fn build_with_line(line: String) -> Result<Self, String> {
         let mut seg = line.split_whitespace();
         match seg.next() {
             Some(ins) => {
@@ -27,56 +27,56 @@ impl Ins {
                         let p1 = Param::build_with_value(seg.next().unwrap());
                         let p2 = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Mov(p1, p2))
+                        Ok(Ins::Mov(p1, p2))
                     }
                     "add" => {
                         let p1 = Param::build_with_value(seg.next().unwrap());
                         let p2 = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Add(p1, p2))
+                        Ok(Ins::Add(p1, p2))
                     }
                     "jne" => {
                         let val = Param::build_with_value(seg.next().unwrap());
                         let add = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Jne(val, add))
+                        Ok(Ins::Jne(val, add))
                     }
                     "psh" => {
                         let val = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Psh(val))
+                        Ok(Ins::Psh(val))
                     }
                     "pop" => {
                         let val = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Pop(val))
+                        Ok(Ins::Pop(val))
                     }
                     "cal" => {
                         let val = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Cal(val))
+                        Ok(Ins::Cal(val))
                     }
-                    "ret" => Some(Ins::Ret),
+                    "ret" => Ok(Ins::Ret),
                     "xor" => {
                         let p1 = Param::build_with_value(seg.next().unwrap());
                         let p2 = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Xor(p1, p2))
+                        Ok(Ins::Xor(p1, p2))
                     }
-                    "end" => Some(Ins::End),
+                    "end" => Ok(Ins::End),
                     _ => {
                         let ins_l = ins.len() - 1;
-                        let vl = &*ins.get(ins_l..).unwrap().to_lowercase();
+                        let vl = &*ins.get(ins_l..).unwrap();
 
                         if vl == ":" {
-                            Some(Ins::Flag(ins.get(0..ins_l).unwrap().to_owned()))
+                            Ok(Ins::Flag(ins.get(0..ins_l).unwrap().to_owned()))
                         } else {
-                            None
+                            Err(format!("unknown keyword '{}'", ins))
                         }
                     }
                 }
             }
-            None => None,
+            None => Err("expected instruction, found nothing".to_owned()),
         }
     }
 
@@ -232,10 +232,21 @@ impl Param {
     pub fn build_with_value(val: &str) -> Self {
         let val = val.to_lowercase();
 
-        // if val has only one char, it's a base10 literal. for sure
+        let v0 = &*val.get(0..1).unwrap();
+        let memory = v0 == "#";
+
+        if v0 == "*" {
+            return Param::Ptr(
+                Box::from(Param::build_with_value(val.get(1..).unwrap()))
+            )
+        }
+
+        // if val has only one char, it's a base10 literal or flag. for sure
         if val.len() < 2 {
-            let v = u16::from_str_radix(&val, 10).unwrap();
-            return Param::Lit(v);
+            return match u16::from_str_radix(&val, 10) {
+                Ok(v) => Param::Lit(v),
+                Err(_) => Param::Flag(val),
+            }
         }
 
         // check if val is one registers
@@ -245,18 +256,8 @@ impl Param {
             }
         }
 
-        let v0 = &*val.get(0..1).unwrap();
-        let memory = v0 == "#";
-        let ptr = v0 == "*";
-
         let v1_offset = if memory { 1 } else { 0 };
         let v1 = &*val.get(v1_offset..v1_offset + 2).unwrap();
-
-        if ptr {
-            return Param::Ptr(
-                Box::from(Param::build_with_value(val.get(1..).unwrap()))
-            )
-        }
 
         match v1 {
             "0x" => {
