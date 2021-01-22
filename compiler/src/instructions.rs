@@ -20,7 +20,8 @@ impl Ins {
         let mut seg = line.split_whitespace();
         match seg.next() {
             Some(ins) => {
-                let ins = &*ins.to_lowercase();
+                let lower = ins.to_lowercase();
+                let ins = lower.as_str();
 
                 match ins {
                     "mov" => {
@@ -66,7 +67,7 @@ impl Ins {
                     "end" => Ok(Ins::End),
                     _ => {
                         let ins_l = ins.len() - 1;
-                        let vl = &*ins.get(ins_l..).unwrap();
+                        let vl = ins.get(ins_l..).unwrap();
 
                         if vl == ":" {
                             Ok(Ins::Flag(ins.get(0..ins_l).unwrap().to_owned()))
@@ -232,7 +233,7 @@ impl Param {
     pub fn build_with_value(val: &str) -> Self {
         let val = val.to_lowercase();
 
-        let v0 = &*val.get(0..1).unwrap();
+        let v0 = val.get(0..1).unwrap();
         let memory = v0 == "#";
 
         if v0 == "*" {
@@ -257,7 +258,7 @@ impl Param {
         }
 
         let v1_offset = if memory { 1 } else { 0 };
-        let v1 = &*val.get(v1_offset..v1_offset + 2).unwrap();
+        let v1 = val.get(v1_offset..v1_offset + 2).unwrap();
 
         match v1 {
             "0x" => {
