@@ -16,71 +16,72 @@ pub enum Ins {
 }
 
 impl Ins {
-    pub fn build_with_line(line: String) -> Option<Self> {
+    pub fn build_with_line(line: String) -> Result<Self, String> {
         let mut seg = line.split_whitespace();
         match seg.next() {
             Some(ins) => {
-                let ins = &*ins.to_lowercase();
+                let lower = ins.to_lowercase();
+                let ins = lower.as_str();
 
                 match ins {
                     "mov" => {
                         let p1 = Param::build_with_value(seg.next().unwrap());
                         let p2 = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Mov(p1, p2))
+                        Ok(Ins::Mov(p1, p2))
                     }
                     "add" => {
                         let p1 = Param::build_with_value(seg.next().unwrap());
                         let p2 = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Add(p1, p2))
+                        Ok(Ins::Add(p1, p2))
                     }
                     "jne" => {
                         let val = Param::build_with_value(seg.next().unwrap());
                         let add = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Jne(val, add))
+                        Ok(Ins::Jne(val, add))
                     }
                     "psh" => {
                         let val = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Psh(val))
+                        Ok(Ins::Psh(val))
                     }
                     "pop" => {
                         let val = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Pop(val))
+                        Ok(Ins::Pop(val))
                     }
                     "cal" => {
                         let val = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Cal(val))
+                        Ok(Ins::Cal(val))
                     }
-                    "ret" => Some(Ins::Ret),
+                    "ret" => Ok(Ins::Ret),
                     "xor" => {
                         let p1 = Param::build_with_value(seg.next().unwrap());
                         let p2 = Param::build_with_value(seg.next().unwrap());
 
-                        Some(Ins::Xor(p1, p2))
+                        Ok(Ins::Xor(p1, p2))
                     }
-                    "end" => Some(Ins::End),
+                    "end" => Ok(Ins::End),
                     _ => {
                         let ins_l = ins.len() - 1;
-                        let vl = &*ins.get(ins_l..).unwrap().to_lowercase();
+                        let vl = ins.get(ins_l..).unwrap();
 
                         if vl == ":" {
-                            Some(Ins::Flag(ins.get(0..ins_l).unwrap().to_owned()))
+                            Ok(Ins::Flag(ins.get(0..ins_l).unwrap().to_owned()))
                         } else {
-                            None
+                            Err(format!("unknown keyword '{}'", ins))
                         }
                     }
                 }
             }
-            None => None,
+            None => Err("expected instruction, found nothing".to_owned()),
         }
     }
 
-    pub fn get_code(&self, register: &HashMap<String, u16>) -> Result<Vec<u8>, String> {
+    pub fn get_code(&self, jmps: &HashMap<String, u16>, vars: Option<&HashMap<String, (Vec<u8>, u16)>>, vars_add: u16) -> Result<Vec<u8>, String> {
         match self {
             // MOV_LIT_REG
             Ins::Mov(Param::Lit(lit), Param::Reg(reg)) => {
@@ -100,9 +101,37 @@ impl Ins {
             Ins::Mov(Param::Mem(mem), Param::Reg(reg)) => {
                 Ok(vec![MOV_MEM_REG, (mem >> 8) as u8, (mem & 0xFF) as u8, *reg])
             }
-            // MOV_PTRREG_REG
+            Ins::Mov(Param::Flag(flag), Param::Reg(reg)) => {
+                if let Some(vars) = vars {
+                    match vars.get(flag) {
+                        Some((_, add)) => {
+                            let var_add = vars_add + *add;
+                            Ok(vec![MOV_LIT_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *reg])
+                        }
+                        None => Err(format!("No variable with name {}", flag))
+                    }
+                } else {
+                    Err(format!("No variable with name {}", flag))
+                }
+            }
+            // MOV_PTR{}_REG
             Ins::Mov(Param::Ptr(ptr), Param::Reg(r2)) => match ptr.as_ref() {
+                // MOV_PTRREG_REG
                 Param::Reg(r1) => Ok(vec![MOV_PTRREG_REG, *r1, *r2]),
+                // MOV_PTR{var}_REG => MOV_MEM_REG
+                Param::Flag(flag) => {
+                    if let Some(vars) = vars {
+                        match vars.get(flag) {
+                            Some((_, add)) => {
+                                let var_add = vars_add + *add;
+                                Ok(vec![MOV_MEM_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *r2])
+                            }
+                            None => Err(format!("No variable with name {}", flag))
+                        }
+                    } else {
+                        Err(format!("No variable with name {}", flag))
+                    }
+                },
                 p => Err(format!("no instruction MOV_PTR{}_REG on this proc", p)),
             },
             // MOV_REG_PTRREG
@@ -120,7 +149,7 @@ impl Ins {
 
             // JNE_LIT_flag
             Ins::Jne(Param::Lit(lit), Param::Flag(flag)) => {
-                match register.get(flag) {
+                match jmps.get(flag) {
                     Some(add) => {
                         Ok(vec![JMP_NOT_EQ, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8])
                     }
@@ -144,11 +173,11 @@ impl Ins {
 
             // CAL_flag
             Ins::Cal(Param::Flag(flag)) => {
-                match register.get(flag) {
+                match jmps.get(flag) {
                     Some(add) => {
                         Ok(vec![CALL_LIT, (add >> 8) as u8, (add & 0xFF) as u8])
                     }
-                    None => Err(format!("CAL_flag: the flag {} dosen't exist", flag))
+                    None => Err(format!("CAL: the flag {} dosen't exist", flag))
                 }
             }
             // CAL_LIT
@@ -175,17 +204,17 @@ impl Ins {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn ins_len(&self) -> usize {
         match self {
             Ins::Flag(_) => 0,
-            Ins::Mov(p1, p2) => 1 + p1.len() + p2.len(),
-            Ins::Add(p1, p2) => 1 + p1.len() + p2.len(),
-            Ins::Jne(p1, p2) => 1 + p1.len() + p2.len(),
-            Ins::Psh(p1) => 1 + p1.len(),
-            Ins::Pop(p1) => 1 + p1.len(),
-            Ins::Cal(p1) => 1 + p1.len(),
+            Ins::Mov(p1, p2) => 1 + p1.param_len() + p2.param_len(),
+            Ins::Add(p1, p2) => 1 + p1.param_len() + p2.param_len(),
+            Ins::Jne(p1, p2) => 1 + p1.param_len() + p2.param_len(),
+            Ins::Psh(p1) => 1 + p1.param_len(),
+            Ins::Pop(p1) => 1 + p1.param_len(),
+            Ins::Cal(p1) => 1 + p1.param_len(),
             Ins::Ret => 1,
-            Ins::Xor(p1, p2) => 1 + p1.len() + p2.len(),
+            Ins::Xor(p1, p2) => 1 + p1.param_len() + p2.param_len(),
             Ins::End => 1,
         }
     }
@@ -204,10 +233,21 @@ impl Param {
     pub fn build_with_value(val: &str) -> Self {
         let val = val.to_lowercase();
 
-        // if val has only one char, it's a base10 literal. for sure
+        let v0 = val.get(0..1).unwrap();
+        let memory = v0 == "#";
+
+        if v0 == "*" {
+            return Param::Ptr(
+                Box::from(Param::build_with_value(val.get(1..).unwrap()))
+            )
+        }
+
+        // if val has only one char, it's a base10 literal or flag. for sure
         if val.len() < 2 {
-            let v = u16::from_str_radix(&val, 10).unwrap();
-            return Param::Lit(v);
+            return match u16::from_str_radix(&val, 10) {
+                Ok(v) => Param::Lit(v),
+                Err(_) => Param::Flag(val),
+            }
         }
 
         // check if val is one registers
@@ -217,18 +257,8 @@ impl Param {
             }
         }
 
-        let v0 = &*val.get(0..1).unwrap();
-        let memory = v0 == "#";
-        let ptr = v0 == "*";
-
         let v1_offset = if memory { 1 } else { 0 };
-        let v1 = &*val.get(v1_offset..v1_offset + 2).unwrap();
-
-        if ptr {
-            return Param::Ptr(
-                Box::from(Param::build_with_value(val.get(1..).unwrap()))
-            )
-        }
+        let v1 = val.get(v1_offset..v1_offset + 2).unwrap();
 
         match v1 {
             "0x" => {
@@ -260,11 +290,11 @@ impl Param {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn param_len(&self) -> usize {
         match self {
             Param::Flag(_) => 2,
             Param::Reg(_) => 1,
-            Param::Ptr(p) => p.len(),
+            Param::Ptr(p) => p.param_len(),
             Param::Lit(_) | Param::Mem(_) => 2,
         }
     }

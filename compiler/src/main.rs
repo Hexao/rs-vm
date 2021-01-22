@@ -1,8 +1,15 @@
-use std::io::{self, BufRead, prelude::*};
-use std::{collections::HashMap, fs::File};
+use std::io::{self, BufRead, Write};
 use structopt::StructOpt;
-use structs::Ins;
-mod structs;
+use std::fs::File;
+use chunk::Chunk;
+
+use codeparser::CodeParser;
+use dataparser::DataParser;
+
+pub mod instructions;
+pub mod codeparser;
+pub mod dataparser;
+pub mod chunk;
 
 #[derive(StructOpt)]
 pub struct Args {
@@ -18,58 +25,65 @@ fn main() {
 
     let file = File::open(format!("{}{}.vms", input_dir, args.input)).unwrap();
     let file = io::BufReader::new(file).lines();
-    let mut cmds = Vec::with_capacity(10);
-    let mut start_address = 0;
+    let mut chunks = vec![];
 
     for (id, line) in file.enumerate() {
-        if let Some(cmd) = Ins::build_with_line(line.unwrap()) {
-            if let Ins::Flag(flag) = &cmd {
-                if start_address == 0 && flag == "start" {
-                    start_address = cmds.len();
-                }
+        if let Ok(line) = line {
+            let line = line.trim().to_owned();
+
+            if line.starts_with(';') || line.is_empty() {
+                continue;
             }
-            cmds.push((cmd, id + 1));
+
+            if line.starts_with('.') {
+                let chunk = Chunk::new(line.get(1..).unwrap().to_owned());
+
+                chunks.push(chunk);
+            } else if let Some(chunk) = chunks.last_mut() {
+                chunk.insert_line(line, id + 1);
+            }
         }
     }
 
-    let mut ptr = 0;
-    let cmds_len = cmds.len();
-    let mut jumps_pts = HashMap::new();
+    let mut data = None;
+    let mut code = None;
 
-    // parse Ins and find address for all flags
-    for id in 0..cmds_len {
-        let id = (start_address + id) % cmds_len;
-        let (cmd, line) = &cmds[id];
-
-        if let Ins::Flag(flag) = cmd {
-            match jumps_pts.insert(flag.to_owned(), ptr as u16) {
-                None => (),
-                Some(_) => {
-                    eprintln!("Duplicate flag {} on line {}", flag, line);
+    for chunk in chunks {
+        match chunk.name().as_str() {
+            "code" => code = match CodeParser::new(chunk) {
+                Ok(code) => Some(code),
+                Err(e) => {
+                    eprintln!("{}", e);
                     return;
                 }
-            }
-        }
-
-        ptr += cmd.len();
-    }
-
-    let mut res = Vec::with_capacity(ptr);
-
-    // iteratr trough Ins and produce exec code
-    for id in 0..cmds_len {
-        let id = (start_address + id) % cmds_len;
-        let (cmd, line) = &cmds[id];
-
-        match cmd.get_code(&jumps_pts) {
-            Ok(mut byts) => res.append(&mut byts),
-            Err(s) => {
-                eprintln!("Error while compiling on line {} : {}", line, s);
-                println!("{:?}", res);
+            },
+            "data" => data = match DataParser::new(chunk) {
+                Ok(data) => Some(data),
+                Err(e) => {
+                    eprintln!("{}", e);
+                    return;
+                }
+            },
+            seg => {
+                eprintln!("Unexpected segment: {}", seg);
                 return;
             }
         }
     }
+
+    let res = match code {
+        Some(main) => match main.get_vec(data) {
+            Ok(ok) => ok,
+            Err(s) => {
+                eprintln!("{}", s);
+                return;
+            }
+        }
+        None => {
+            eprintln!("Error on compilation: '.code' segment is required!");
+            return;
+        }
+    };
 
     let out_file = args.out.unwrap_or(args.input);
     std::fs::create_dir_all(out_dir).unwrap_or_else(|_|

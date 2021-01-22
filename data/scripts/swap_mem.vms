@@ -1,16 +1,50 @@
-; swap value in memory address
-; pointed by r1 ad r2
-swap_mem:
+.data
+    a 0
+    b 0
+    ok "les variable a et b ont été échangés", 0
+    err "a ou b n'as pas la bonne valeur", 0
+
+.code
+    start:
+    mov 0x4F a
+    mov 0x69 b
+    mov a r1
+    mov b r2
+    cal swap_mem
+    mov *a acc
+    jne 0x69 err
+    mov *b acc
+    jne 0x4F err
+    mov ok r1
+    jmp ok
+    err:
+    mov err r1
+    ok:
+    cal print
+    end
+
+    ; swap value in memory address
+    ; pointed by r1 ad r2
+    swap_mem:
     mov *r1 r3
     mov *r2 r4
     mov r3 *r2
     mov r4 *r1
     ret
 
-start:
-    mov 0x004F #0x00F0
-    mov 0x0069 #0x00F2
-    mov 0x00F0 r1
-    mov 0x00F2 r2
-    cal swap_mem
-    end
+    ; print the string pointed
+    ; by the value in R1
+    print:
+    mov *screen r2
+    mov *r1 acc
+    mov 1 r7
+    mov 2 r8
+    print_loop:
+    mov acc *r2
+    add r1 r8
+    mov acc r1
+    add r2 r7
+    mov acc r2
+    mov *r1 acc
+    jne 0 print_loop
+    ret

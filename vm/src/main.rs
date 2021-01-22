@@ -15,7 +15,7 @@ fn main() {
     let mut cpu = CPU::default();
     let memory_capacity = 0xFF;
     let mut instructions = Vec::with_capacity(memory_capacity);
-    
+
     let dir = "data/output/";
     let args: Args = Args::from_args();
     let mut file = File::open(format!("{}{}.vmo", dir, args.source)).unwrap();

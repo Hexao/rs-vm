@@ -220,7 +220,7 @@ impl CPU {
             // Push Literal on Stack
             PSH_LIT => {
                 let value = self.fetch_u16()?;
-                
+
                 #[cfg(debug_assertions)]
                 println!("Push {:#06X} (literal) on stack, decrement stack pointer", value);
 
@@ -341,7 +341,7 @@ impl CPU {
 
         self.stack_frame_size += 2;
         self.set_register("sp", sp_address - 2)?;
-        Ok(())  
+        Ok(())
     }
 
     fn pop(&mut self) -> Result<u16, MemoryError> {
@@ -384,7 +384,7 @@ impl CPU {
         // set stack_frame_size to 2 to avoid neg number on pop
         self.stack_frame_size = 2;
 
-        // Restor the stackframe size and update start of stackframe 
+        // Restor the stackframe size and update start of stackframe
         let sf_size = self.pop()?;
         self.stack_frame_size = sf_size as usize;
         self.set_register("fp", sf_size)?;
@@ -471,7 +471,7 @@ impl Default for CPU {
         registers.set_memory_at_u16(10 * 2, (0xFFFF - 1) as u16).unwrap();
         // 11 is the index of FP; - 1 for the length and -1 because 2 bytes
         registers.set_memory_at_u16(11 * 2, (0xFFFF - 1) as u16).unwrap();
-        
+
         let register_map = REGISTER_NAMES
             .to_vec()
             .iter()
