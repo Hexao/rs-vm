@@ -6,6 +6,7 @@ pub enum Ins {
     Flag(String),
     Mov(Param, Param),
     Add(Param, Param),
+    Jmp(Param),
     Jne(Param, Param),
     Psh(Param),
     Pop(Param),
@@ -35,6 +36,11 @@ impl Ins {
                         let p2 = Param::build_with_value(seg.next().unwrap());
 
                         Ok(Ins::Add(p1, p2))
+                    }
+                    "jmp" => {
+                        let add = Param::build_with_value(seg.next().unwrap());
+
+                        Ok(Ins::Jmp(add))
                     }
                     "jne" => {
                         let val = Param::build_with_value(seg.next().unwrap());
@@ -91,6 +97,16 @@ impl Ins {
             Ins::Mov(Param::Lit(lit), Param::Mem(mem)) => {
                 Ok(vec![MOV_LIT_MEM, (lit >> 8) as u8, (lit & 0xFF) as u8, (mem >> 8) as u8, (mem & 0xFF) as u8])
             }
+            Ins::Mov(Param::Lit(lit), Param::Flag(flag)) => match vars {
+                Some(vars) => match vars.get(flag) {
+                    Some((_, add)) => {
+                        let var_add = vars_add + *add;
+                        Ok(vec![MOV_LIT_MEM, (lit >> 8) as u8, (lit & 0xFF) as u8, (var_add >> 8) as u8, (var_add & 0xFF) as u8])
+                    },
+                    None => Err(format!("No variable with name {}", flag)),
+                },
+                None => Err(format!("No variable with name {}", flag)),
+            }
             // MOV_REG_REG
             Ins::Mov(Param::Reg(r1), Param::Reg(r2)) => Ok(vec![MOV_REG_REG, *r1, *r2]),
             // MOV_REG_MEM
@@ -101,36 +117,30 @@ impl Ins {
             Ins::Mov(Param::Mem(mem), Param::Reg(reg)) => {
                 Ok(vec![MOV_MEM_REG, (mem >> 8) as u8, (mem & 0xFF) as u8, *reg])
             }
-            Ins::Mov(Param::Flag(flag), Param::Reg(reg)) => {
-                if let Some(vars) = vars {
-                    match vars.get(flag) {
-                        Some((_, add)) => {
-                            let var_add = vars_add + *add;
-                            Ok(vec![MOV_LIT_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *reg])
-                        }
-                        None => Err(format!("No variable with name {}", flag))
-                    }
-                } else {
-                    Err(format!("No variable with name {}", flag))
-                }
-            }
+            Ins::Mov(Param::Flag(flag), Param::Reg(reg)) => match vars {
+                Some(vars) => match vars.get(flag) {
+                    Some((_, add)) => {
+                        let var_add = vars_add + *add;
+                        Ok(vec![MOV_LIT_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *reg])
+                    },
+                    None => Err(format!("No variable with name {}", flag)),
+                },
+                None => Err(format!("No variable with name {}", flag)),
+            },
             // MOV_PTR{}_REG
             Ins::Mov(Param::Ptr(ptr), Param::Reg(r2)) => match ptr.as_ref() {
                 // MOV_PTRREG_REG
                 Param::Reg(r1) => Ok(vec![MOV_PTRREG_REG, *r1, *r2]),
                 // MOV_PTR{var}_REG => MOV_MEM_REG
-                Param::Flag(flag) => {
-                    if let Some(vars) = vars {
-                        match vars.get(flag) {
-                            Some((_, add)) => {
-                                let var_add = vars_add + *add;
-                                Ok(vec![MOV_MEM_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *r2])
-                            }
-                            None => Err(format!("No variable with name {}", flag))
-                        }
-                    } else {
-                        Err(format!("No variable with name {}", flag))
-                    }
+                Param::Flag(flag) => match vars {
+                    Some(vars) => match vars.get(flag) {
+                        Some((_, add)) => {
+                            let var_add = vars_add + *add;
+                            Ok(vec![MOV_MEM_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *r2])
+                        },
+                        None => Err(format!("No variable with name {}", flag)),
+                    },
+                    None => Err(format!("No variable with name {}", flag)),
                 },
                 p => Err(format!("no instruction MOV_PTR{}_REG on this proc", p)),
             },
@@ -147,17 +157,31 @@ impl Ins {
             // Return an error if add operation don't existe
             Ins::Add(p1, p2) => Err(format!("no instruction ADD_{}_{} on this proc", p1, p2)),
 
+            // JMP_flag
+            Ins::Jmp(Param::Flag(flag)) => {
+                match jmps.get(flag) {
+                    Some(add) => {
+                        Ok(vec![JMP_LIT, (add >> 8) as u8, (add & 0xFF) as u8])
+                    }
+                    None => Err(format!("JMP: the flag {} dosen't exist", flag))
+                }
+            }
+            // JMP_LIT
+            Ins::Jmp(Param::Lit(add)) => {
+                Ok(vec![JMP_LIT, (add >> 8) as u8, (add & 0xFF) as u8])
+            }
+
             // JNE_LIT_flag
             Ins::Jne(Param::Lit(lit), Param::Flag(flag)) => {
                 match jmps.get(flag) {
                     Some(add) => {
-                        Ok(vec![JMP_NOT_EQ, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8])
+                        Ok(vec![JNE_LIT_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8])
                     }
                     None => Err(format!("JNE: the flag {} dosen't exist", flag))
                 }
             }
             // JNE_LIT_LIT
-            Ins::Jne(Param::Lit(lit), Param::Lit(add)) => Ok(vec![JMP_NOT_EQ, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8]),
+            Ins::Jne(Param::Lit(lit), Param::Lit(add)) => Ok(vec![JNE_LIT_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8]),
 
             // PSH_LIT
             Ins::Psh(Param::Lit(lit)) => Ok(vec![PSH_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8]),
@@ -200,7 +224,7 @@ impl Ins {
             // END
             Ins::End => Ok(vec![END]),
             Ins::Flag(_) => Ok(vec![]),
-            ins => Err(format!("found an unknow instructions : {:?}", ins)),
+            ins => Err(format!("found an unknow instructions : {}", ins)),
         }
     }
 
@@ -209,6 +233,7 @@ impl Ins {
             Ins::Flag(_) => 0,
             Ins::Mov(p1, p2) => 1 + p1.param_len() + p2.param_len(),
             Ins::Add(p1, p2) => 1 + p1.param_len() + p2.param_len(),
+            Ins::Jmp(p1) => 1 + p1.param_len(),
             Ins::Jne(p1, p2) => 1 + p1.param_len() + p2.param_len(),
             Ins::Psh(p1) => 1 + p1.param_len(),
             Ins::Pop(p1) => 1 + p1.param_len(),
@@ -216,6 +241,24 @@ impl Ins {
             Ins::Ret => 1,
             Ins::Xor(p1, p2) => 1 + p1.param_len() + p2.param_len(),
             Ins::End => 1,
+        }
+    }
+}
+
+impl std::fmt::Display for Ins {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Ins::Flag(name) => write!(f, "FLAG{{{}}}", name),
+            Ins::Mov(p1, p2) => write!(f, "MOV_{}_{}", p1, p2),
+            Ins::Add(p1, p2) => write!(f, "ADD_{}_{}", p1, p2),
+            Ins::Jmp(p1) => write!(f, "JMP_{}", p1),
+            Ins::Jne(p1, p2) => write!(f, "JNE_{}_{}", p1, p2),
+            Ins::Psh(p1) => write!(f, "PSH_{}", p1),
+            Ins::Pop(p1) => write!(f, "POP_{}", p1),
+            Ins::Cal(p1) => write!(f, "CAL_{}", p1),
+            Ins::Ret => write!(f, "RET"),
+            Ins::Xor(p1, p2) => write!(f, "XOR_{}_{}", p1, p2),
+            Ins::End => write!(f, "END"),
         }
     }
 }

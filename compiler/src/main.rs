@@ -22,10 +22,15 @@ fn main() {
     let args: Args = Args::from_args();
     let input_dir = "data/scripts/";
     let out_dir = "data/output/";
-
-    let file = File::open(format!("{}{}.vms", input_dir, args.input)).unwrap();
-    let file = io::BufReader::new(file).lines();
     let mut chunks = vec![];
+
+    let file = match File::open(format!("{}{}.vms", input_dir, args.input)) {
+        Ok(file) => io::BufReader::new(file).lines(),
+        Err(e) => {
+            eprintln!("Error when oppening \"{}\": {}", format!("{}.vms", args.input), e);
+            return;
+        }
+    };
 
     for (id, line) in file.enumerate() {
         if let Ok(line) = line {

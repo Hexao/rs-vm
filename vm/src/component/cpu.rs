@@ -182,8 +182,17 @@ impl CPU {
                 self.memory.set_memory_at_u16(memory_loc as usize, val)?;
                 Ok(())
             }
+            JMP_LIT => {
+                let address_to_jmp = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory)", address_to_jmp);
+
+                self.set_register("ip", address_to_jmp)?;
+                Ok(())
+            }
             // Jump to provided memory address if literal not equal to accumulator value
-            JMP_NOT_EQ => {
+            JNE_LIT_LIT => {
                 let literal = self.fetch_u16()?;
                 let address_to_jmp = self.fetch_u16()?;
                 let acc_value = self.get_register("acc")?;

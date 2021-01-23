@@ -35,7 +35,7 @@
     ; print the string pointed
     ; by the value in R1
     print:
-    mov *screen r2
+    mov 0x3000 r2
     mov *r1 acc
     mov 1 r7
     mov 2 r8
