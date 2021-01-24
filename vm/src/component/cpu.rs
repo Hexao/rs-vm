@@ -66,7 +66,7 @@ impl CPU {
         Ok(instruction)
     }
 
-    fn fetch_conditional_jump(&mut self, cmp: &str) -> Result<[u16; 3], MemoryError> {
+    fn fetch_conditional_jump(&mut self, _cmp: &str) -> Result<[u16; 3], MemoryError> {
         let lit = self.fetch_u16()?;
         let jmp = self.fetch_u16()?;
         let acc = self.get_register("acc")?;
@@ -74,7 +74,7 @@ impl CPU {
         #[cfg(debug_assertions)]
         println!(
             "Jump to {:#06X} (memory) if {:#06X} (literal) {} to {:#06X} (acc)",
-            jmp, lit, cmp, acc
+            jmp, lit, _cmp, acc
         );
 
         Ok([lit, jmp, acc])
@@ -312,6 +312,38 @@ impl CPU {
                 self.push(value)?;
                 Ok(())
             }
+            // Push memory on stack
+            PSH_MEM => {
+                let memory_add = self.fetch_u16()? as usize;
+                let value = self.memory.get_memory_at_u16(memory_add)?;
+
+                #[cfg(debug_assertions)]
+                println!(
+                    "Push {:#06X} (value on memory {:#06X}) on stack, decrement stack pointer",
+                    value, memory_add
+                );
+
+                self.push(value)?;
+                Ok(())
+            }
+            // Push memory poinyed by register on stack
+            PSH_PTRREG => {
+                let reg = self.fetch_reg()?;
+                let add = self.registers.get_memory_at_u16(reg * 2)? as usize;
+                let value = self.memory.get_memory_at_u16(add)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!(
+                        "Push {:#06X} (value on memory {:#06X} pointed by {}) on stack, decrement stack pointer",
+                        value, add, reg_name
+                    );
+                }
+
+                self.push(value)?;
+                Ok(())
+            }
             // Pop stack head to given register
             POP_REG => {
                 let reg = self.fetch_reg()?;
@@ -327,6 +359,38 @@ impl CPU {
                 }
 
                 self.registers.set_memory_at_u16(reg * 2, value)?;
+                Ok(())
+            }
+            // Pop stack head to given memory address
+            POP_MEM => {
+                let memory_add = self.fetch_u16()? as usize;
+                let value = self.pop()?;
+
+                #[cfg(debug_assertions)]
+                println!(
+                    "Pop {:#06X} (value on stack) to memory {:#06X}, increment stack pointer",
+                    value, memory_add
+                );
+
+                self.memory.set_memory_at_u16(memory_add, value)?;
+                Ok(())
+            }
+            // Pop stack head to memory address pointed by register
+            POP_PTRREG => {
+                let reg = self.fetch_reg()?;
+                let add = self.registers.get_memory_at_u16(reg * 2)? as usize;
+                let value = self.pop()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!(
+                        "Pop {:#06X} (value on stack) to memory {:#06X} pointed by {}, increment stack pointer",
+                        value, add, reg_name
+                    );
+                }
+
+                self.memory.set_memory_at_u16(add, value)?;
                 Ok(())
             }
             // call a function with literal address

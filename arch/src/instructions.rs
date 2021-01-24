@@ -18,7 +18,11 @@ pub const JLE_LIT_LIT   : u8 = 0x36; // jump to second lit if first lit <= acc
 
 pub const PSH_LIT       : u8 = 0x40;
 pub const PSH_REG       : u8 = 0x41;
-pub const POP_REG       : u8 = 0x42;
+pub const PSH_MEM       : u8 = 0x42;
+pub const PSH_PTRREG    : u8 = 0x43;
+pub const POP_REG       : u8 = 0x44;
+pub const POP_MEM       : u8 = 0x45;
+pub const POP_PTRREG    : u8 = 0x46;
 
 pub const CALL_LIT      : u8 = 0x50;
 pub const CALL_REG      : u8 = 0x51;

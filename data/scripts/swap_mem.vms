@@ -6,8 +6,8 @@
 
 .code
     start:
-    mov 0x4F a
-    mov 0x69 b
+    mov 0x4F *a
+    mov 0x69 *b
     mov a r1
     mov b r2
     cal swap_mem
@@ -26,10 +26,10 @@
     ; swap value in memory address
     ; pointed by r1 ad r2
     swap_mem:
-    mov *r1 r3
-    mov *r2 r4
-    mov r3 *r2
-    mov r4 *r1
+    psh *r1
+    psh *r2
+    pop *r1
+    pop *r2
     ret
 
     ; print the string pointed
