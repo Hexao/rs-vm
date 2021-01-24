@@ -1,51 +1,63 @@
 #[cfg(test)]
 mod tests {
+    use crate::component::cpu::CPU;
+    use arch::{instructions::*, registers::*};
+
     #[test]
     fn cpu_register_test() {
-        use crate::component::cpu::CPU;
-
         let mut cpu = CPU::default();
 
-        cpu.set_register("r1", 0x8574).unwrap();
-        cpu.set_register("r6", 0x20).unwrap();
+        cpu.set_register("r1", 0x0102).unwrap();
+        cpu.set_register("r2", 0x0304).unwrap();
+        cpu.set_register("r3", 0x0506).unwrap();
+        cpu.set_register("r4", 0x0708).unwrap();
+        cpu.set_register("r5", 0x090A).unwrap();
+        cpu.set_register("r6", 0x0B0C).unwrap();
+        cpu.set_register("r7", 0x0D0E).unwrap();
+        cpu.set_register("r8", 0x0F10).unwrap();
 
-        cpu.print_registers();
-        assert_eq!(cpu.get_register("r1").unwrap(), 0x8574);
+        assert_eq!(cpu.get_register("ip").unwrap(), 0x0000);
+        assert_eq!(cpu.get_register("acc").unwrap(), 0x000);
+        assert_eq!(cpu.get_register("r1").unwrap(), 0x0102);
+        assert_eq!(cpu.get_register("r2").unwrap(), 0x0304);
+        assert_eq!(cpu.get_register("r3").unwrap(), 0x0506);
+        assert_eq!(cpu.get_register("r4").unwrap(), 0x0708);
+        assert_eq!(cpu.get_register("r5").unwrap(), 0x090A);
+        assert_eq!(cpu.get_register("r6").unwrap(), 0x0B0C);
+        assert_eq!(cpu.get_register("r7").unwrap(), 0x0D0E);
+        assert_eq!(cpu.get_register("r8").unwrap(), 0x0F10);
+        assert_eq!(cpu.get_register("sp").unwrap(), 0xFFFE);
+        assert_eq!(cpu.get_register("fp").unwrap(), 0xFFFE);
     }
 
     #[test]
-    fn cpu_mov_add_test() {
-        use crate::component::cpu::CPU;
-        use arch::{
-            instructions::*,
-            registers::{ACC, R1, R2},
-        };
-
+    fn cpu_acc_test() {
         let mut cpu = CPU::default();
 
         let instructions = [
-            MOV_LIT_REG, 0xFF, 0xFF, R1,  // move 0xFFFF in r1 (16 bit)
-            MOV_LIT_REG, 0x00, 0x02, R2,  // move 0x0001 in r2 (16 bit)
-            MOV_LIT_REG, 0x00, 0x4F, ACC, // fill ACC with non-null value
+            // basic addition
+            MOV_LIT_REG, 0x00, 0x10, R1,  // move 0x10 in r1 (16 bit)
+            MOV_LIT_REG, 0x00, 0x0A, R2,  // move 0x0A in r2 (16 bit)
             ADD_REG_REG, R1,   R2,        // add r1 and r2
-            END,                          // stop the program
-        ];
 
+            // overfolwing addition
+            MOV_LIT_REG, 0xFF, 0xFF, R1,  // move 0x10 in r1 (16 bit)
+            MOV_LIT_REG, 0x00, 0x10, R2,  // move 0x0A in r2 (16 bit)
+            ADD_REG_REG, R1,   R2,        // add r1 and r2
+        ];
+        let expected = [0x001A, 0x000F];
         cpu.set_instruction(&instructions);
-        while cpu.step() {}
-        assert_eq!(cpu.get_register("r1").unwrap(), 0xFFFF);
-        assert_eq!(cpu.get_register("r2").unwrap(), 0x02);
-        assert_eq!(cpu.get_register("acc").unwrap(), 0x01);
+
+        for expected_val in &expected {
+            for _ in 0..3 { cpu.step(); }
+
+            let acc = cpu.get_register("acc").unwrap();
+            assert_eq!(*expected_val, acc);
+        }
     }
 
     #[test]
     fn cpu_jmp_xor_test() {
-        use crate::component::cpu::CPU;
-        use arch::{
-            instructions::*,
-            registers::{ACC, R1, R2},
-        };
-
         let mut cpu = CPU::default();
 
         let instructions = [
@@ -67,27 +79,27 @@ mod tests {
 
     #[test]
     fn memory_test() {
-        use crate::component::memory::Memory;
         use crate::component::memory_io::MemoryIO;
+        use crate::component::memory::Memory;
 
         let mut m = Memory::new(0x40);
         m.set_memory_at_u8(0x01, 0x01).unwrap();
         m.set_memory_at_u8(0x05, 0x20).unwrap();
 
         assert_eq!(m.get_memory_at_u8(0x04).unwrap(), 0x00);
+        assert_eq!(m.get_memory_at_u16(0x04).unwrap(), 0x0020);
+
         assert_eq!(m.get_memory_at_u8(0x01).unwrap(), 0x01);
+        assert_eq!(m.get_memory_at_u16(0x01).unwrap(), 0x0100);
+
         assert_eq!(m.get_memory_at_u8(0x05).unwrap(), 0x20);
+        assert_eq!(m.get_memory_at_u16(0x05).unwrap(), 0x2000);
+
         assert_eq!(m.get_memory_at_u8(0x40).is_err(), true);
     }
 
     #[test]
     fn swap_registers_with_stack() {
-        use crate::component::cpu::CPU;
-        use arch::{
-            instructions::*,
-            registers::{R1, R2},
-        };
-
         let mut cpu = CPU::default();
         let instructions = [
             MOV_LIT_REG, 0x00, 0x4F, R1,
@@ -109,12 +121,6 @@ mod tests {
 
     #[test]
     fn call_subroutine() {
-        use crate::component::cpu::CPU;
-        use arch::{
-            instructions::*,
-            registers::{R1, R2, R3, R4},
-        };
-
         let mut cpu = CPU::default();
         let instructions = [
             MOV_LIT_REG, 0x11, 0x11, R1, // 0x0000
