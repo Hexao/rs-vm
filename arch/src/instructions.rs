@@ -9,7 +9,12 @@ pub const MOV_REG_PTRREG: u8 = 0x16;
 pub const ADD_REG_REG   : u8 = 0x20;
 
 pub const JMP_LIT       : u8 = 0x30;
-pub const JNE_LIT_LIT   : u8 = 0x31; // jump to second lit if first lit != acc
+pub const JEQ_LIT_LIT   : u8 = 0x31; // jump to second lit if first lit == acc
+pub const JNE_LIT_LIT   : u8 = 0x32; // jump to second lit if first lit != acc
+pub const JGT_LIT_LIT   : u8 = 0x33; // jump to second lit if first lit >  acc
+pub const JGE_LIT_LIT   : u8 = 0x34; // jump to second lit if first lit >= acc
+pub const JLT_LIT_LIT   : u8 = 0x35; // jump to second lit if first lit <  acc
+pub const JLE_LIT_LIT   : u8 = 0x36; // jump to second lit if first lit <= acc
 
 pub const PSH_LIT       : u8 = 0x40;
 pub const PSH_REG       : u8 = 0x41;

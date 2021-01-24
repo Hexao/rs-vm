@@ -44,12 +44,12 @@ impl CPU {
         self.registers.print_memory_chunk_u16(0, REGISTER_NAMES.len() * 2);
     }
 
-    pub fn fetch_reg(&mut self) -> Result<usize, MemoryError> {
+    fn fetch_reg(&mut self) -> Result<usize, MemoryError> {
         Ok(self.fetch_u8()? as usize % REGISTER_NAMES.len())
     }
 
     /// Gets the 8bit instruction pointed to by the instruction pointer and increase himself by one
-    pub fn fetch_u8(&mut self) -> Result<u8, MemoryError> {
+    fn fetch_u8(&mut self) -> Result<u8, MemoryError> {
         let next_instruction = self.get_register("ip")?;
         let instruction = self.memory.get_memory_at_u8(next_instruction as usize)?;
         self.set_register("ip", next_instruction + 1)?;
@@ -58,12 +58,26 @@ impl CPU {
     }
 
     /// Gets the instruction pointed to by the instruction pointer and increase himself by one
-    pub fn fetch_u16(&mut self) -> Result<u16, MemoryError> {
+    fn fetch_u16(&mut self) -> Result<u16, MemoryError> {
         let next_instruction = self.get_register("ip")?;
         let instruction = self.memory.get_memory_at_u16(next_instruction as usize)?;
         self.set_register("ip", next_instruction + 2)?;
 
         Ok(instruction)
+    }
+
+    fn fetch_conditional_jump(&mut self, cmp: &str) -> Result<[u16; 3], MemoryError> {
+        let lit = self.fetch_u16()?;
+        let jmp = self.fetch_u16()?;
+        let acc = self.get_register("acc")?;
+
+        #[cfg(debug_assertions)]
+        println!(
+            "Jump to {:#06X} (memory) if {:#06X} (literal) {} to {:#06X} (acc)",
+            jmp, lit, cmp, acc
+        );
+
+        Ok([lit, jmp, acc])
     }
 
     fn execute(&mut self, instruction: u8) -> Result<(), ExecutionError> {
@@ -191,20 +205,57 @@ impl CPU {
                 self.set_register("ip", address_to_jmp)?;
                 Ok(())
             }
+            // Jump to provided memory address if literal equal to accumulator value
+            JEQ_LIT_LIT => {
+                let [lit, jmp_add, acc] = self.fetch_conditional_jump("==")?;
+
+                if lit == acc {
+                    self.set_register("ip", jmp_add)?;
+                }
+                Ok(())
+            }
             // Jump to provided memory address if literal not equal to accumulator value
             JNE_LIT_LIT => {
-                let literal = self.fetch_u16()?;
-                let address_to_jmp = self.fetch_u16()?;
-                let acc_value = self.get_register("acc")?;
+                let [lit, jmp_add, acc] = self.fetch_conditional_jump("!=")?;
 
-                #[cfg(debug_assertions)]
-                println!(
-                    "Jump to {:#06X} (memory) if {:#06X} (literal) != to {:#06X} (acc)",
-                    address_to_jmp, literal, acc_value
-                );
+                if lit != acc {
+                    self.set_register("ip", jmp_add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if literal is greater than accumulator value
+            JGT_LIT_LIT => {
+                let [lit, jmp_add, acc] = self.fetch_conditional_jump(">")?;
 
-                if acc_value != literal {
-                    self.set_register("ip", address_to_jmp)?;
+                if lit > acc {
+                    self.set_register("ip", jmp_add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if literal is greater or equal to accumulator value
+            JGE_LIT_LIT => {
+                let [lit, jmp_add, acc] = self.fetch_conditional_jump(">=")?;
+
+                if lit >= acc {
+                    self.set_register("ip", jmp_add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if literal is less than accumulator value
+            JLT_LIT_LIT => {
+                let [lit, jmp_add, acc] = self.fetch_conditional_jump("<")?;
+
+                if lit < acc {
+                    self.set_register("ip", jmp_add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if literal is less or equal to accumulator value
+            JLE_LIT_LIT => {
+                let [lit, jmp_add, acc] = self.fetch_conditional_jump("<=")?;
+
+                if lit <= acc {
+                    self.set_register("ip", jmp_add)?;
                 }
                 Ok(())
             }
