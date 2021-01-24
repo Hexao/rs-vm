@@ -47,7 +47,7 @@ impl DataParser {
                         }
 
                         Ok(vec)
-                    },
+                    }
                     None => match next.get(2) {
                         Some(data) => {
                             let data = data.as_str();
@@ -101,7 +101,7 @@ impl DataParser {
             Some(key) => {
                 let (v, m) = self.vars.get(key).unwrap();
                 *m as usize + v.len()
-            },
+            }
             None => 0,
         }
     }

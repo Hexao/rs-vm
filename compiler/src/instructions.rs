@@ -87,42 +87,71 @@ impl Ins {
         }
     }
 
-    pub fn get_code(&self, jmps: &HashMap<String, u16>, vars: Option<&HashMap<String, (Vec<u8>, u16)>>, vars_add: u16) -> Result<Vec<u8>, String> {
+    pub fn get_code(
+        &self,
+        jmps: &HashMap<String, u16>,
+        vars: Option<&HashMap<String, (Vec<u8>, u16)>>,
+        vars_add: u16,
+    ) -> Result<Vec<u8>, String> {
         match self {
             // MOV_LIT_REG
-            Ins::Mov(Param::Lit(lit), Param::Reg(reg)) => {
-                Ok(vec![MOV_LIT_REG, (lit >> 8) as u8, (lit & 0xFF) as u8, *reg])
-            }
+            Ins::Mov(Param::Lit(lit), Param::Reg(reg)) => Ok(vec![
+                MOV_LIT_REG,
+                (lit >> 8) as u8,
+                (lit & 0xFF) as u8,
+                *reg,
+            ]),
             // MOV_LIT_MEM
-            Ins::Mov(Param::Lit(lit), Param::Mem(mem)) => {
-                Ok(vec![MOV_LIT_MEM, (lit >> 8) as u8, (lit & 0xFF) as u8, (mem >> 8) as u8, (mem & 0xFF) as u8])
-            }
+            Ins::Mov(Param::Lit(lit), Param::Mem(mem)) => Ok(vec![
+                MOV_LIT_MEM,
+                (lit >> 8) as u8,
+                (lit & 0xFF) as u8,
+                (mem >> 8) as u8,
+                (mem & 0xFF) as u8,
+            ]),
             Ins::Mov(Param::Lit(lit), Param::Flag(flag)) => match vars {
                 Some(vars) => match vars.get(flag) {
                     Some((_, add)) => {
                         let var_add = vars_add + *add;
-                        Ok(vec![MOV_LIT_MEM, (lit >> 8) as u8, (lit & 0xFF) as u8, (var_add >> 8) as u8, (var_add & 0xFF) as u8])
-                    },
+                        Ok(vec![
+                            MOV_LIT_MEM,
+                            (lit >> 8) as u8,
+                            (lit & 0xFF) as u8,
+                            (var_add >> 8) as u8,
+                            (var_add & 0xFF) as u8,
+                        ])
+                    }
                     None => Err(format!("No variable with name {}", flag)),
                 },
                 None => Err(format!("No variable with name {}", flag)),
-            }
+            },
             // MOV_REG_REG
             Ins::Mov(Param::Reg(r1), Param::Reg(r2)) => Ok(vec![MOV_REG_REG, *r1, *r2]),
             // MOV_REG_MEM
-            Ins::Mov(Param::Reg(reg), Param::Mem(mem)) => {
-                Ok(vec![MOV_REG_MEM, *reg, (mem >> 8) as u8, (mem & 0xFF) as u8])
-            }
+            Ins::Mov(Param::Reg(reg), Param::Mem(mem)) => Ok(vec![
+                MOV_REG_MEM,
+                *reg,
+                (mem >> 8) as u8,
+                (mem & 0xFF) as u8,
+            ]),
             // MOV_MEM_REG
-            Ins::Mov(Param::Mem(mem), Param::Reg(reg)) => {
-                Ok(vec![MOV_MEM_REG, (mem >> 8) as u8, (mem & 0xFF) as u8, *reg])
-            }
+            Ins::Mov(Param::Mem(mem), Param::Reg(reg)) => Ok(vec![
+                MOV_MEM_REG,
+                (mem >> 8) as u8,
+                (mem & 0xFF) as u8,
+                *reg,
+            ]),
             Ins::Mov(Param::Flag(flag), Param::Reg(reg)) => match vars {
                 Some(vars) => match vars.get(flag) {
                     Some((_, add)) => {
                         let var_add = vars_add + *add;
-                        Ok(vec![MOV_LIT_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *reg])
-                    },
+                        Ok(vec![
+                            MOV_LIT_REG,
+                            (var_add >> 8) as u8,
+                            (var_add & 0xFF) as u8,
+                            *reg,
+                        ])
+                    }
                     None => Err(format!("No variable with name {}", flag)),
                 },
                 None => Err(format!("No variable with name {}", flag)),
@@ -136,8 +165,13 @@ impl Ins {
                     Some(vars) => match vars.get(flag) {
                         Some((_, add)) => {
                             let var_add = vars_add + *add;
-                            Ok(vec![MOV_MEM_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *r2])
-                        },
+                            Ok(vec![
+                                MOV_MEM_REG,
+                                (var_add >> 8) as u8,
+                                (var_add & 0xFF) as u8,
+                                *r2,
+                            ])
+                        }
                         None => Err(format!("No variable with name {}", flag)),
                     },
                     None => Err(format!("No variable with name {}", flag)),
@@ -158,30 +192,32 @@ impl Ins {
             Ins::Add(p1, p2) => Err(format!("no instruction ADD_{}_{} on this proc", p1, p2)),
 
             // JMP_flag
-            Ins::Jmp(Param::Flag(flag)) => {
-                match jmps.get(flag) {
-                    Some(add) => {
-                        Ok(vec![JMP_LIT, (add >> 8) as u8, (add & 0xFF) as u8])
-                    }
-                    None => Err(format!("JMP: the flag {} dosen't exist", flag))
-                }
-            }
+            Ins::Jmp(Param::Flag(flag)) => match jmps.get(flag) {
+                Some(add) => Ok(vec![JMP_LIT, (add >> 8) as u8, (add & 0xFF) as u8]),
+                None => Err(format!("JMP: the flag {} dosen't exist", flag)),
+            },
             // JMP_LIT
-            Ins::Jmp(Param::Lit(add)) => {
-                Ok(vec![JMP_LIT, (add >> 8) as u8, (add & 0xFF) as u8])
-            }
+            Ins::Jmp(Param::Lit(add)) => Ok(vec![JMP_LIT, (add >> 8) as u8, (add & 0xFF) as u8]),
 
             // JNE_LIT_flag
-            Ins::Jne(Param::Lit(lit), Param::Flag(flag)) => {
-                match jmps.get(flag) {
-                    Some(add) => {
-                        Ok(vec![JNE_LIT_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8])
-                    }
-                    None => Err(format!("JNE: the flag {} dosen't exist", flag))
-                }
-            }
+            Ins::Jne(Param::Lit(lit), Param::Flag(flag)) => match jmps.get(flag) {
+                Some(add) => Ok(vec![
+                    JNE_LIT_LIT,
+                    (lit >> 8) as u8,
+                    (lit & 0xFF) as u8,
+                    (add >> 8) as u8,
+                    (add & 0xFF) as u8,
+                ]),
+                None => Err(format!("JNE: the flag {} dosen't exist", flag)),
+            },
             // JNE_LIT_LIT
-            Ins::Jne(Param::Lit(lit), Param::Lit(add)) => Ok(vec![JNE_LIT_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8]),
+            Ins::Jne(Param::Lit(lit), Param::Lit(add)) => Ok(vec![
+                JNE_LIT_LIT,
+                (lit >> 8) as u8,
+                (lit & 0xFF) as u8,
+                (add >> 8) as u8,
+                (add & 0xFF) as u8,
+            ]),
 
             // PSH_LIT
             Ins::Psh(Param::Lit(lit)) => Ok(vec![PSH_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8]),
@@ -196,14 +232,10 @@ impl Ins {
             Ins::Pop(p) => Err(format!("no instruction POP_{} on this proc", p)),
 
             // CAL_flag
-            Ins::Cal(Param::Flag(flag)) => {
-                match jmps.get(flag) {
-                    Some(add) => {
-                        Ok(vec![CALL_LIT, (add >> 8) as u8, (add & 0xFF) as u8])
-                    }
-                    None => Err(format!("CAL: the flag {} dosen't exist", flag))
-                }
-            }
+            Ins::Cal(Param::Flag(flag)) => match jmps.get(flag) {
+                Some(add) => Ok(vec![CALL_LIT, (add >> 8) as u8, (add & 0xFF) as u8]),
+                None => Err(format!("CAL: the flag {} dosen't exist", flag)),
+            },
             // CAL_LIT
             Ins::Cal(Param::Lit(lit)) => Ok(vec![CALL_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8]),
             // CAL_REG
@@ -217,7 +249,12 @@ impl Ins {
             // XOR_REG_REG
             Ins::Xor(Param::Reg(r1), Param::Reg(r2)) => Ok(vec![XOR_REG_REG, *r1, *r2]),
             // XOR_REG_LIT
-            Ins::Xor(Param::Reg(reg), Param::Lit(lit)) => Ok(vec![XOR_REG_LIT, *reg, (lit >> 8) as u8, (lit & 0xFF) as u8]),
+            Ins::Xor(Param::Reg(reg), Param::Lit(lit)) => Ok(vec![
+                XOR_REG_LIT,
+                *reg,
+                (lit >> 8) as u8,
+                (lit & 0xFF) as u8,
+            ]),
             // Return an error if xor operation don't existe
             Ins::Xor(p1, p2) => Err(format!("no instruction XOR_{}_{} on this proc", p1, p2)),
 
@@ -280,9 +317,7 @@ impl Param {
         let memory = v0 == "#";
 
         if v0 == "*" {
-            return Param::Ptr(
-                Box::from(Param::build_with_value(val.get(1..).unwrap()))
-            )
+            return Param::Ptr(Box::from(Param::build_with_value(val.get(1..).unwrap())));
         }
 
         // if val has only one char, it's a base10 literal or flag. for sure
@@ -290,7 +325,7 @@ impl Param {
             return match u16::from_str_radix(&val, 10) {
                 Ok(v) => Param::Lit(v),
                 Err(_) => Param::Flag(val),
-            }
+            };
         }
 
         // check if val is one registers

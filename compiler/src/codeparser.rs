@@ -25,7 +25,7 @@ impl CodeParser {
                         }
                     }
                     cmds.push((cmd, id));
-                },
+                }
                 Err(s) => return Err(format!("Error while compiling on line {} : {}", id, s)),
             }
         }
@@ -81,9 +81,7 @@ impl CodeParser {
             let (ins, line) = &self.cmds[id];
 
             match ins.get_code(&self.jumps_pts, vars, ins_len as u16) {
-                Ok(v) => for el in v {
-                    vec.push(el);
-                },
+                Ok(mut v) => vec.append(&mut v),
                 Err(s) => return Err(format!("Error while compiling on line {} : {}", line, s)),
             }
         }

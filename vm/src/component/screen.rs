@@ -88,7 +88,7 @@ impl MemoryIO for Screen {
         let y = location / self.width;
 
         if y >= self.height {
-            return Err(memory_io::MemoryError::OutOfBounds(location))
+            return Err(memory_io::MemoryError::OutOfBounds(location));
         }
 
         self.move_to(x + 1, y + 1);

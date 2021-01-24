@@ -52,7 +52,7 @@ mod tests {
             MOV_LIT_REG, 0x00, 0x01, R2,         // move 0x0001 in r2 (16 bit)
             MOV_REG_REG, ACC,  R1,               // store accumulator value in memory address 0x0080
             ADD_REG_REG, R1,   R2,               // add r1 and r2
-            JNE_LIT_LIT,  0x00, 0x02, 0x00, 0x04, // Jump to address 0x0000 in memory if accumulator not equal to 0x0004
+            JNE_LIT_LIT, 0x00, 0x02, 0x00, 0x04, // Jump to address 0x0000 in memory if accumulator not equal to 0x0004
             XOR_REG_REG, R1,   R1,               // XOR register with himself to set to 0
             XOR_REG_REG, R2,   R2,               // XOR register with himself to set to 0
             END,                                 // stop the program

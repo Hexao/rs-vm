@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use crate::component::memory::Memory;
-use arch::registers::REGISTER_NAMES;
-use crate::component::memory_io::*;
 use super::memory_map::MemoryMap;
 use super::screen::Screen;
-use arch::instructions::*;
+use super::memory::Memory;
+use super::memory_io::*;
 
+use arch::registers::REGISTER_NAMES;
+use arch::instructions::*;
 
 /// CPU struct that will be the "head" of the VM.
 /// It handles everything from memory pointers to executing incomming instructions
@@ -105,7 +105,10 @@ impl CPU {
                 let memory = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Move {:#06X} (literal) in {:#06X} (memory)", literal, memory);
+                println!(
+                    "Move {:#06X} (literal) in {:#06X} (memory)",
+                    literal, memory
+                );
 
                 self.memory.set_memory_at_u16(memory as usize, literal)?;
                 Ok(())
@@ -168,7 +171,8 @@ impl CPU {
                 {
                     let r1_name = REGISTER_NAMES[r1];
                     let r2_name = REGISTER_NAMES[r2];
-                    println!("Move value {:#06X} from memory {:#06X} pointed by {} to register {}",
+                    println!(
+                        "Move value {:#06X} from memory {:#06X} pointed by {} to register {}",
                         memory_val, memory_loc, r1_name, r2_name
                     );
                 }
@@ -188,7 +192,8 @@ impl CPU {
                 {
                     let r1_name = REGISTER_NAMES[r1];
                     let r2_name = REGISTER_NAMES[r2];
-                    println!("Move {} into memory {:#06X} pointed by {}",
+                    println!(
+                        "Move {} into memory {:#06X} pointed by {}",
                         r1_name, memory_loc, r2_name
                     );
                 }
@@ -282,7 +287,10 @@ impl CPU {
                 let value = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Push {:#06X} (literal) on stack, decrement stack pointer", value);
+                println!(
+                    "Push {:#06X} (literal) on stack, decrement stack pointer",
+                    value
+                );
 
                 self.push(value)?;
                 Ok(())
@@ -295,7 +303,10 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[register_index];
-                    println!("Push {:#06X} (value on {}) on stack, decrement stack pointer", value, reg_name);
+                    println!(
+                        "Push {:#06X} (value on {}) on stack, decrement stack pointer",
+                        value, reg_name
+                    );
                 }
 
                 self.push(value)?;
@@ -309,7 +320,10 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Pop {:#06X} (value on stack) to {}, increment stack pointer", value, reg_name);
+                    println!(
+                        "Pop {:#06X} (value on stack) to {}, increment stack pointer",
+                        value, reg_name
+                    );
                 }
 
                 self.registers.set_memory_at_u16(reg * 2, value)?;
@@ -333,7 +347,10 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Call a subroutine at {:#06X} (stored in register {})", address, reg_name);
+                    println!(
+                        "Call a subroutine at {:#06X} (stored in register {})",
+                        address, reg_name
+                    );
                 }
 
                 self.call(address)?;
@@ -388,7 +405,10 @@ impl CPU {
             }
             code => {
                 #[cfg(debug_assertions)]
-                println!("<ERROR> => The instruction {:#04X} is not known by this CPU\n", code);
+                println!(
+                    "<ERROR> => The instruction {:#04X} is not known by this CPU\n",
+                    code
+                );
 
                 Err(ExecutionError::UnexpectedInstruction(code))
             }
@@ -452,7 +472,7 @@ impl CPU {
         // Restor all registers, in reverse order than `call` do
         let reg_to_load = ["ip", "r8", "r7", "r6", "r5", "r4", "r3", "r2", "r1"];
         for reg in reg_to_load.iter() {
-            let stack_value  = self.pop()?;
+            let stack_value = self.pop()?;
             self.set_register(reg, stack_value)?;
         }
 
@@ -538,8 +558,7 @@ impl Default for CPU {
             .fold(HashMap::new(), |mut map, s| {
                 let _ = map.insert(*s, map.len() * 2);
                 map
-            }
-        );
+            });
 
         Self {
             memory,

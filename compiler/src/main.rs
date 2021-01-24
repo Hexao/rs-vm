@@ -1,10 +1,10 @@
 use std::io::{self, BufRead, Write};
 use structopt::StructOpt;
 use std::fs::File;
-use chunk::Chunk;
 
 use codeparser::CodeParser;
 use dataparser::DataParser;
+use chunk::Chunk;
 
 pub mod instructions;
 pub mod codeparser;
@@ -27,7 +27,11 @@ fn main() {
     let file = match File::open(format!("{}{}.vms", input_dir, args.input)) {
         Ok(file) => io::BufReader::new(file).lines(),
         Err(e) => {
-            eprintln!("Error when oppening \"{}\": {}", format!("{}.vms", args.input), e);
+            eprintln!(
+                "Error when oppening \"{}\": {}",
+                format!("{}.vms", args.input),
+                e
+            );
             return;
         }
     };
@@ -83,7 +87,7 @@ fn main() {
                 eprintln!("{}", s);
                 return;
             }
-        }
+        },
         None => {
             eprintln!("Error on compilation: '.code' segment is required!");
             return;
@@ -91,9 +95,7 @@ fn main() {
     };
 
     let out_file = args.out.unwrap_or(args.input);
-    std::fs::create_dir_all(out_dir).unwrap_or_else(|_|
-        panic!("can't create dir '{}'", out_dir)
-    );
+    std::fs::create_dir_all(out_dir).unwrap_or_else(|_| panic!("can't create dir '{}'", out_dir));
     let mut out_file = File::create(format!("{}{}.vmo", out_dir, out_file)).unwrap();
     out_file.write_all(&res).unwrap();
 }
