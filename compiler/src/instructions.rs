@@ -6,6 +6,8 @@ pub enum Ins {
     Flag(String),
     Mov(Param, Param),
     Add(Param, Param),
+    Inc(Param),
+    Dec(Param),
     Jmp(Param),
     Jne(Param, Param),
     Psh(Param),
@@ -36,6 +38,16 @@ impl Ins {
                         let p2 = Param::build_with_value(seg.next().unwrap());
 
                         Ok(Ins::Add(p1, p2))
+                    }
+                    "inc" => {
+                        let p1 = Param::build_with_value(seg.next().unwrap());
+
+                        Ok(Ins::Inc(p1))
+                    }
+                    "dec" => {
+                        let p1 = Param::build_with_value(seg.next().unwrap());
+
+                        Ok(Ins::Dec(p1))
                     }
                     "jmp" => {
                         let add = Param::build_with_value(seg.next().unwrap());
@@ -96,18 +108,11 @@ impl Ins {
         match self {
             // MOV_LIT_REG
             Ins::Mov(Param::Lit(lit), Param::Reg(reg)) => Ok(vec![
-                MOV_LIT_REG,
-                (lit >> 8) as u8,
-                (lit & 0xFF) as u8,
-                *reg,
+                MOV_LIT_REG, (lit >> 8) as u8, (lit & 0xFF) as u8, *reg
             ]),
             // MOV_LIT_MEM
             Ins::Mov(Param::Lit(lit), Param::Mem(mem)) => Ok(vec![
-                MOV_LIT_MEM,
-                (lit >> 8) as u8,
-                (lit & 0xFF) as u8,
-                (mem >> 8) as u8,
-                (mem & 0xFF) as u8,
+                MOV_LIT_MEM16, (lit >> 8) as u8, (lit & 0xFF) as u8, (mem >> 8) as u8, (mem & 0xFF) as u8
             ]),
             // MOV_LIT_PTR{}
             Ins::Mov(Param::Lit(lit), Param::Ptr(ptr)) => match ptr.as_ref() {
@@ -117,34 +122,24 @@ impl Ins {
                         Some((_, add)) => {
                             let var_add = vars_add + *add;
                             Ok(vec![
-                                MOV_LIT_MEM,
-                                (lit >> 8) as u8,
-                                (lit & 0xFF) as u8,
-                                (var_add >> 8) as u8,
-                                (var_add & 0xFF) as u8,
+                                MOV_LIT_MEM16, (lit >> 8) as u8, (lit & 0xFF) as u8, (var_add >> 8) as u8, (var_add & 0xFF) as u8
                             ])
                         }
                         None => Err(format!("No variable with name {}", flag)),
                     },
                     None => Err(format!("No variable with name {}", flag)),
                 },
-                p => Err(format!("No instruction MOV_LIT_PTR{} on this proc", p)),
+                p => Err(format!("Found an unknow instructions : MOV_LIT_PTR{}", p)),
             },
             // MOV_REG_REG
             Ins::Mov(Param::Reg(r1), Param::Reg(r2)) => Ok(vec![MOV_REG_REG, *r1, *r2]),
             // MOV_REG_MEM
             Ins::Mov(Param::Reg(reg), Param::Mem(mem)) => Ok(vec![
-                MOV_REG_MEM,
-                *reg,
-                (mem >> 8) as u8,
-                (mem & 0xFF) as u8,
+                MOV_REG_MEM, *reg, (mem >> 8) as u8, (mem & 0xFF) as u8
             ]),
             // MOV_MEM_REG
             Ins::Mov(Param::Mem(mem), Param::Reg(reg)) => Ok(vec![
-                MOV_MEM_REG,
-                (mem >> 8) as u8,
-                (mem & 0xFF) as u8,
-                *reg,
+                MOV_MEM_REG, (mem >> 8) as u8, (mem & 0xFF) as u8, *reg
             ]),
             // MOV_flag_REG
             Ins::Mov(Param::Flag(flag), Param::Reg(reg)) => match vars {
@@ -172,36 +167,35 @@ impl Ins {
                         Some((_, add)) => {
                             let var_add = vars_add + *add;
                             Ok(vec![
-                                MOV_MEM_REG,
-                                (var_add >> 8) as u8,
-                                (var_add & 0xFF) as u8,
-                                *r2,
+                                MOV_MEM_REG, (var_add >> 8) as u8, (var_add & 0xFF) as u8, *r2
                             ])
                         }
                         None => Err(format!("No variable with name {}", flag)),
                     },
                     None => Err(format!("No variable with name {}", flag)),
                 },
-                p => Err(format!("No instruction MOV_PTR{}_REG on this proc", p)),
+                p => Err(format!("Found an unknow instructions : MOV_PTR{}_REG", p)),
             },
             // MOV_REG_PTR{}
             Ins::Mov(Param::Reg(r1), Param::Ptr(ptr)) => match ptr.as_ref() {
                 // MOV_REG_PTRREG
                 Param::Reg(r2) => Ok(vec![MOV_REG_PTRREG, *r1, *r2]),
-                p => Err(format!("No instruction MOV_REG_PTR{} on this proc", p)),
+                p => Err(format!("Found an unknow instructions : MOV_REG_PTR{}", p)),
             },
-            // Return an error if mov operation don't existe
-            Ins::Mov(p1, p2) => Err(format!("No instruction MOV_{}_{} on this proc", p1, p2)),
 
             // ADD_REG_REG
             Ins::Add(Param::Reg(r1), Param::Reg(r2)) => Ok(vec![ADD_REG_REG, *r1, *r2]),
-            // Return an error if add operation don't existe
-            Ins::Add(p1, p2) => Err(format!("No instruction ADD_{}_{} on this proc", p1, p2)),
+            // ADD_REG_LIT
+            Ins::Add(Param::Reg(reg), Param::Lit(lit)) => Ok(vec![ADD_REG_LIT, *reg, (lit >> 8) as u8, (lit & 0xFF) as u8]),
+            // INC_REG
+            Ins::Inc(Param::Reg(reg)) => Ok(vec![INC_REG, *reg]),
+            // DEC_REG
+            Ins::Dec(Param::Reg(reg)) => Ok(vec![DEC_REG, *reg]),
 
             // JMP_flag
             Ins::Jmp(Param::Flag(flag)) => match jmps.get(flag) {
                 Some(add) => Ok(vec![JMP_LIT, (add >> 8) as u8, (add & 0xFF) as u8]),
-                None => Err(format!("JMP: The flag {} dosen't exist", flag)),
+                None => Err(format!("The flag {} dosen't exist", flag)),
             },
             // JMP_LIT
             Ins::Jmp(Param::Lit(add)) => Ok(vec![JMP_LIT, (add >> 8) as u8, (add & 0xFF) as u8]),
@@ -209,21 +203,13 @@ impl Ins {
             // JNE_LIT_flag
             Ins::Jne(Param::Lit(lit), Param::Flag(flag)) => match jmps.get(flag) {
                 Some(add) => Ok(vec![
-                    JNE_LIT_LIT,
-                    (lit >> 8) as u8,
-                    (lit & 0xFF) as u8,
-                    (add >> 8) as u8,
-                    (add & 0xFF) as u8,
+                    JNE_LIT_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8
                 ]),
-                None => Err(format!("JNE: The flag {} dosen't exist", flag)),
+                None => Err(format!("The flag {} dosen't exist", flag)),
             },
             // JNE_LIT_LIT
             Ins::Jne(Param::Lit(lit), Param::Lit(add)) => Ok(vec![
-                JNE_LIT_LIT,
-                (lit >> 8) as u8,
-                (lit & 0xFF) as u8,
-                (add >> 8) as u8,
-                (add & 0xFF) as u8,
+                JNE_LIT_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8, (add >> 8) as u8, (add & 0xFF) as u8
             ]),
 
             // PSH_LIT
@@ -236,10 +222,8 @@ impl Ins {
             Ins::Psh(Param::Ptr(ptr)) => match ptr.as_ref() {
                 // PSH_PTRREG
                 Param::Reg(reg) => Ok(vec![PSH_PTRREG, *reg]),
-                p => Err(format!("No instruction PSH_PTR{} on this proc", p)),
+                p => Err(format!("Found an unknow instructions : PSH_PTR{}", p)),
             },
-            // Return an error if psh operation don't existe
-            Ins::Psh(p) => Err(format!("No instruction PSH_{} on this proc", p)),
 
             // POP_REG
             Ins::Pop(Param::Reg(reg)) => Ok(vec![POP_REG, *reg]),
@@ -247,22 +231,18 @@ impl Ins {
             Ins::Pop(Param::Ptr(ptr)) => match ptr.as_ref() {
                 // PSH_PTRREG
                 Param::Reg(reg) => Ok(vec![POP_PTRREG, *reg]),
-                p => Err(format!("No instruction POP_PTR{} on this proc", p)),
+                p => Err(format!("Found an unknow instructions : POP_PTR{}", p)),
             },
-            // Return an error if pop operation don't existe
-            Ins::Pop(p) => Err(format!("No instruction POP_{} on this proc", p)),
 
             // CAL_flag
             Ins::Cal(Param::Flag(flag)) => match jmps.get(flag) {
                 Some(add) => Ok(vec![CALL_LIT, (add >> 8) as u8, (add & 0xFF) as u8]),
-                None => Err(format!("CAL: The flag {} dosen't exist", flag)),
+                None => Err(format!("The flag {} dosen't exist", flag)),
             },
             // CAL_LIT
             Ins::Cal(Param::Lit(lit)) => Ok(vec![CALL_LIT, (lit >> 8) as u8, (lit & 0xFF) as u8]),
             // CAL_REG
             Ins::Cal(Param::Reg(reg)) => Ok(vec![CALL_REG, *reg]),
-            // Return an error if cal operation don't existe
-            Ins::Cal(p) => Err(format!("No instruction PSH_{} on this proc", p)),
 
             // RET
             Ins::Ret => Ok(vec![RET]),
@@ -276,8 +256,6 @@ impl Ins {
                 (lit >> 8) as u8,
                 (lit & 0xFF) as u8,
             ]),
-            // Return an error if xor operation don't existe
-            Ins::Xor(p1, p2) => Err(format!("No instruction XOR_{}_{} on this proc", p1, p2)),
 
             // END
             Ins::End => Ok(vec![END]),
@@ -291,6 +269,8 @@ impl Ins {
             Ins::Flag(_) => 0,
             Ins::Mov(p1, p2) => 1 + p1.param_len() + p2.param_len(),
             Ins::Add(p1, p2) => 1 + p1.param_len() + p2.param_len(),
+            Ins::Inc(p1) => 1 + p1.param_len(),
+            Ins::Dec(p1) => 1 + p1.param_len(),
             Ins::Jmp(p1) => 1 + p1.param_len(),
             Ins::Jne(p1, p2) => 1 + p1.param_len() + p2.param_len(),
             Ins::Psh(p1) => 1 + p1.param_len(),
@@ -309,6 +289,8 @@ impl std::fmt::Display for Ins {
             Ins::Flag(name) => write!(f, "FLAG{{{}}}", name),
             Ins::Mov(p1, p2) => write!(f, "MOV_{}_{}", p1, p2),
             Ins::Add(p1, p2) => write!(f, "ADD_{}_{}", p1, p2),
+            Ins::Inc(p1) => write!(f, "INC_{}", p1),
+            Ins::Dec(p1) => write!(f, "DEC_{}", p1),
             Ins::Jmp(p1) => write!(f, "JMP_{}", p1),
             Ins::Jne(p1, p2) => write!(f, "JNE_{}_{}", p1, p2),
             Ins::Psh(p1) => write!(f, "PSH_{}", p1),

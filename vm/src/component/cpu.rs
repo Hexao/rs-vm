@@ -5,8 +5,26 @@ use super::screen::Screen;
 use super::memory::Memory;
 use super::memory_io::*;
 
-use arch::registers::REGISTER_NAMES;
 use arch::instructions::*;
+use arch::registers::*;
+
+macro_rules! register {
+    ($self:ident, $reg:expr => $data:ident) => {
+        match SIZE_OF[$reg] {
+            1 => $self.registers.set_memory_at_u8(ADDRESS_OF[$reg], $data as u8),
+            2 => $self.registers.set_memory_at_u16(ADDRESS_OF[$reg], $data),
+            x => Err(MemoryError::BadRegisterLen(x)),
+        }
+    };
+
+    ($self:ident, $reg:expr) => {
+        match SIZE_OF[$reg] {
+            1 => Ok($self.registers.get_memory_at_u8(ADDRESS_OF[$reg])? as u16),
+            2 => $self.registers.get_memory_at_u16(ADDRESS_OF[$reg]),
+            x => Err(MemoryError::BadRegisterLen(x)),
+        }
+    };
+}
 
 /// CPU struct that will be the "head" of the VM.
 /// It handles everything from memory pointers to executing incomming instructions
@@ -19,37 +37,40 @@ pub struct CPU {
 
 impl CPU {
     pub fn get_register(&self, name: &'static str) -> Result<u16, MemoryError> {
-        let reg_pointer = self
-            .register_map
-            .get(name)
-            .unwrap_or_else(|| panic!("Register {} does not exist", name));
-        self.registers.get_memory_at_u16(*reg_pointer)
+        match self.register_map.get(name) {
+            Some(reg) => register!(self, *reg),
+            None => Err(MemoryError::NoRegister(name)),
+        }
     }
 
     pub fn set_register(&mut self, name: &'static str, data: u16) -> Result<(), MemoryError> {
-        let reg_pointer = self
-            .register_map
-            .get(name)
-            .unwrap_or_else(|| panic!("Register {} does not exist", name));
-        self.registers.set_memory_at_u16(*reg_pointer, data)
+        match self.register_map.get(name) {
+            Some(reg) => register!(self, *reg => data),
+            None => Err(MemoryError::NoRegister(name)),
+        }
     }
 
     pub fn print_registers(&self) {
+        let regs = [
+            "ip", "acc", "ax", "bx", "cx", "dx",
+            "ex", "fx", "gx", "hx", "sp", "fp"
+        ];
+
         print!("Label            : "); // gap to align text
-        for label in REGISTER_NAMES {
+        for label in regs.iter() {
             print!("{:<7}", label);
         }
         println!();
 
-        self.registers.print_memory_chunk_u16(0, REGISTER_NAMES.len() * 2);
+        self.registers.print_memory_chunk_u16(0, REGISTER_LEN);
     }
 
-    fn fetch_reg(&mut self) -> Result<usize, MemoryError> {
+    fn fetch_reg(&mut self) -> Result<usize, ExecutionError> {
         Ok(self.fetch_u8()? as usize % REGISTER_NAMES.len())
     }
 
     /// Gets the 8bit instruction pointed to by the instruction pointer and increase himself by one
-    fn fetch_u8(&mut self) -> Result<u8, MemoryError> {
+    fn fetch_u8(&mut self) -> Result<u8, ExecutionError> {
         let next_instruction = self.get_register("ip")?;
         let instruction = self.memory.get_memory_at_u8(next_instruction as usize)?;
         self.set_register("ip", next_instruction + 1)?;
@@ -58,7 +79,7 @@ impl CPU {
     }
 
     /// Gets the instruction pointed to by the instruction pointer and increase himself by one
-    fn fetch_u16(&mut self) -> Result<u16, MemoryError> {
+    fn fetch_u16(&mut self) -> Result<u16, ExecutionError> {
         let next_instruction = self.get_register("ip")?;
         let instruction = self.memory.get_memory_at_u16(next_instruction as usize)?;
         self.set_register("ip", next_instruction + 2)?;
@@ -66,7 +87,7 @@ impl CPU {
         Ok(instruction)
     }
 
-    fn fetch_conditional_jump(&mut self, _cmp: &str) -> Result<[u16; 3], MemoryError> {
+    fn fetch_conditional_jump(&mut self, _cmp: &str) -> Result<[u16; 3], ExecutionError> {
         let lit = self.fetch_u16()?;
         let jmp = self.fetch_u16()?;
         let acc = self.get_register("acc")?;
@@ -96,11 +117,25 @@ impl CPU {
                     println!("Move {:#06X} (literal) in {}", literal, reg_name);
                 }
 
-                self.registers.set_memory_at_u16(reg * 2, literal)?;
+                register!(self, reg => literal)?;
                 Ok(())
             }
             // Move literal directly in the memory
-            MOV_LIT_MEM => {
+            MOV_LIT_MEM8 => {
+                let literal = self.fetch_u16()? as u8;
+                let memory = self.fetch_u16()? as usize;
+
+                #[cfg(debug_assertions)]
+                println!(
+                    "Move {:#04X} (literal) in {:#06X} (memory)",
+                    literal, memory
+                );
+
+                self.memory.set_memory_at_u8(memory, literal)?;
+                Ok(())
+            }
+            // Move literal directly in the memory
+            MOV_LIT_MEM16 => {
                 let literal = self.fetch_u16()?;
                 let memory = self.fetch_u16()?;
 
@@ -125,14 +160,14 @@ impl CPU {
                     println!("Move {} in {}", reg_from_name, reg_to_name);
                 }
 
-                let value = self.registers.get_memory_at_u16(reg_from * 2)?;
-                self.registers.set_memory_at_u16(reg_to * 2, value)?;
+                let value = register!(self, reg_from)?;
+                register!(self, reg_to => value)?;
                 Ok(())
             }
             // Move register value into a specific memory address
             MOV_REG_MEM => {
                 let reg = self.fetch_reg()?;
-                let memory_address = self.fetch_u16()?;
+                let memory_address = self.fetch_u16()? as usize;
 
                 #[cfg(debug_assertions)]
                 {
@@ -140,9 +175,17 @@ impl CPU {
                     println!("Move {} at {:#06X} (memory)", reg_name, memory_address);
                 }
 
-                let reg_value = self.registers.get_memory_at_u16(reg * 2)?;
-                self.memory.set_memory_at_u16(memory_address as usize, reg_value)?;
-                Ok(())
+                match SIZE_OF[reg] {
+                    1 => {
+                        let value = self.registers.get_memory_at_u8(ADDRESS_OF[reg])?;
+                        Ok(self.memory.set_memory_at_u8(memory_address, value)?)
+                    }
+                    2 => {
+                        let value = self.registers.get_memory_at_u16(ADDRESS_OF[reg])?;
+                        Ok(self.memory.set_memory_at_u16(memory_address, value)?)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
+                }
             }
             // Move memory value into a specific register
             MOV_MEM_REG => {
@@ -155,51 +198,81 @@ impl CPU {
                     println!("Move {:#06X} (memory) in {}", memory_address, reg_name);
                 }
 
-                let mem_value = self.memory.get_memory_at_u16(memory_address)?;
-                self.registers.set_memory_at_u16(reg * 2, mem_value)?;
-                Ok(())
+                match SIZE_OF[reg] {
+                    1 => {
+                        let value = self.memory.get_memory_at_u8(memory_address)?;
+                        Ok(self.registers.set_memory_at_u8(ADDRESS_OF[reg], value)?)
+                    }
+                    2 => {
+                        let value = self.memory.get_memory_at_u16(memory_address)?;
+                        Ok(self.registers.set_memory_at_u16(ADDRESS_OF[reg], value)?)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
+                }
             }
+            // Move memory value to another memory address
+
+            // Move memory value to another memory address
+            
             // Move a memory address pointed by register in register
             MOV_PTRREG_REG => {
                 let r1 = self.fetch_reg()?;
                 let r2 = self.fetch_reg()?;
 
-                let memory_loc = self.registers.get_memory_at_u16(r1 * 2)?;
-                let memory_val = self.memory.get_memory_at_u16(memory_loc as usize)?;
+                match SIZE_OF[r1] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        let mem_loc = self.registers.get_memory_at_u16(ADDRESS_OF[r1])? as usize;
+                        let mem_val = match SIZE_OF[r2] {
+                            1 => self.memory.get_memory_at_u8(mem_loc)? as u16,
+                            2 => self.memory.get_memory_at_u16(mem_loc)?,
+                            x => panic!("What does mean register of size {} ?", x),
+                        };
 
-                #[cfg(debug_assertions)]
-                {
-                    let r1_name = REGISTER_NAMES[r1];
-                    let r2_name = REGISTER_NAMES[r2];
-                    println!(
-                        "Move value {:#06X} from memory {:#06X} pointed by {} to register {}",
-                        memory_val, memory_loc, r1_name, r2_name
-                    );
+                        #[cfg(debug_assertions)]
+                        {
+                            let r1_name = REGISTER_NAMES[r1];
+                            let r2_name = REGISTER_NAMES[r2];
+                            println!(
+                                "Move value {:#06X} from memory {:#06X} pointed by {} to register {}",
+                                mem_val, mem_loc, r1_name, r2_name
+                            );
+                        }
+
+                        Ok(register!(self, r2 => mem_val)?)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
                 }
-
-                self.registers.set_memory_at_u16(r2 * 2, memory_val)?;
-                Ok(())
             }
             // Move value from register to memory address pointed by register
             MOV_REG_PTRREG => {
                 let r1 = self.fetch_reg()?;
                 let r2 = self.fetch_reg()?;
 
-                let val = self.registers.get_memory_at_u16(r1 * 2)?;
-                let memory_loc = self.registers.get_memory_at_u16(r2 * 2)?;
+                match SIZE_OF[r2] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        let val = register!(self, r1)?;
+                        let mem_loc = self.registers.get_memory_at_u16(ADDRESS_OF[r2])? as usize;
 
-                #[cfg(debug_assertions)]
-                {
-                    let r1_name = REGISTER_NAMES[r1];
-                    let r2_name = REGISTER_NAMES[r2];
-                    println!(
-                        "Move {} into memory {:#06X} pointed by {}",
-                        r1_name, memory_loc, r2_name
-                    );
+                        #[cfg(debug_assertions)]
+                        {
+                            let r1_name = REGISTER_NAMES[r1];
+                            let r2_name = REGISTER_NAMES[r2];
+                            println!(
+                                "Move value {:#06X} from {} into memory {:#06X} pointed by {}",
+                                val, r1_name, mem_loc, r2_name
+                            );
+                        }
+
+                        match SIZE_OF[r1] {
+                            1 => Ok(self.memory.set_memory_at_u8(mem_loc, val as u8)?),
+                            2 => Ok(self.memory.set_memory_at_u16(mem_loc, val)?),
+                            x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                        }
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
                 }
-
-                self.memory.set_memory_at_u16(memory_loc as usize, val)?;
-                Ok(())
             }
             JMP_LIT => {
                 let address_to_jmp = self.fetch_u16()?;
@@ -276,11 +349,77 @@ impl CPU {
                     println!("Add {} and {}, store result in ACC", r1n, r2n);
                 }
 
-                let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
-                let r2_value = self.registers.get_memory_at_u16(r2 * 2)?;
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
 
                 self.set_register("acc", r1_value.overflowing_add(r2_value).0)?;
                 Ok(())
+            }
+            // Add register with literal
+            ADD_REG_LIT => {
+                let reg = self.fetch_reg()?;
+                let val = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Add {} and {:#06X}, store result in ACC", reg_name, val);
+                }
+
+                let reg_val = register!(self, reg)?;
+                let res = val.overflowing_add(reg_val).0;
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Increment register value by one
+            INC_REG => {
+                let reg = self.fetch_reg()?;
+                let add = ADDRESS_OF[reg];
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Increment {} value by one", reg_name);
+                }
+
+                match SIZE_OF[reg] {
+                    1 => {
+                        let val = self.registers.get_memory_at_u8(add)?;
+                        let res = val.overflowing_add(1).0;
+                        Ok(self.registers.set_memory_at_u8(add, res)?)
+                    }
+                    2 => {
+                        let val = self.registers.get_memory_at_u16(add)?;
+                        let res = val.overflowing_add(1).0;
+                        Ok(self.registers.set_memory_at_u16(add, res)?)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
+                }
+            }
+            // Decrement register value by one
+            DEC_REG => {
+                let reg = self.fetch_reg()?;
+                let add = ADDRESS_OF[reg];
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Increment {} value by one", reg_name);
+                }
+
+                match SIZE_OF[reg] {
+                    1 => {
+                        let val = self.registers.get_memory_at_u8(add)?;
+                        let res = val.overflowing_sub(1).0;
+                        Ok(self.registers.set_memory_at_u8(add, res)?)
+                    }
+                    2 => {
+                        let val = self.registers.get_memory_at_u16(add)?;
+                        let res = val.overflowing_sub(1).0;
+                        Ok(self.registers.set_memory_at_u16(add, res)?)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
+                }
             }
             // Push Literal on Stack
             PSH_LIT => {
@@ -292,13 +431,12 @@ impl CPU {
                     value
                 );
 
-                self.push(value)?;
-                Ok(())
+                self.push(value)
             }
             // Push register on stack
             PSH_REG => {
                 let register_index = self.fetch_reg()?;
-                let value = self.registers.get_memory_at_u16(register_index * 2)?;
+                let value = register!(self, register_index)?;
 
                 #[cfg(debug_assertions)]
                 {
@@ -309,11 +447,23 @@ impl CPU {
                     );
                 }
 
-                self.push(value)?;
-                Ok(())
+                self.push(value)
             }
             // Push memory on stack
-            PSH_MEM => {
+            PSH_MEM8 => {
+                let memory_add = self.fetch_u16()? as usize;
+                let value = self.memory.get_memory_at_u8(memory_add)?;
+
+                #[cfg(debug_assertions)]
+                println!(
+                    "Push {:#06X} (value on memory {:#06X}) on stack, decrement stack pointer",
+                    value, memory_add
+                );
+
+                self.push(value as u16)
+            }
+            // Push memory on stack
+            PSH_MEM16 => {
                 let memory_add = self.fetch_u16()? as usize;
                 let value = self.memory.get_memory_at_u16(memory_add)?;
 
@@ -323,26 +473,31 @@ impl CPU {
                     value, memory_add
                 );
 
-                self.push(value)?;
-                Ok(())
+                self.push(value)
             }
             // Push memory poinyed by register on stack
             PSH_PTRREG => {
                 let reg = self.fetch_reg()?;
-                let add = self.registers.get_memory_at_u16(reg * 2)? as usize;
-                let value = self.memory.get_memory_at_u16(add)?;
 
-                #[cfg(debug_assertions)]
-                {
-                    let reg_name = REGISTER_NAMES[reg];
-                    println!(
-                        "Push {:#06X} (value on memory {:#06X} pointed by {}) on stack, decrement stack pointer",
-                        value, add, reg_name
-                    );
+                match SIZE_OF[reg] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        let add = self.registers.get_memory_at_u16(ADDRESS_OF[reg])? as usize;
+                        let value = self.memory.get_memory_at_u16(add)?;
+
+                        #[cfg(debug_assertions)]
+                        {
+                            let reg_name = REGISTER_NAMES[reg];
+                            println!(
+                                "Push {:#06X} (value on memory {:#06X} pointed by {}) on stack, decrement stack pointer",
+                                value, add, reg_name
+                            );
+                        }
+
+                        self.push(value)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
                 }
-
-                self.push(value)?;
-                Ok(())
             }
             // Pop stack head to given register
             POP_REG => {
@@ -358,11 +513,24 @@ impl CPU {
                     );
                 }
 
-                self.registers.set_memory_at_u16(reg * 2, value)?;
+                register!(self, reg => value)?;
                 Ok(())
             }
             // Pop stack head to given memory address
-            POP_MEM => {
+            POP_MEM8 => {
+                let memory_add = self.fetch_u16()? as usize;
+                let value = self.pop()?;
+
+                #[cfg(debug_assertions)]
+                println!(
+                    "Pop {:#06X} (value on stack) to memory {:#06X}, increment stack pointer",
+                    value, memory_add
+                );
+
+                self.memory.set_memory_at_u8(memory_add, value as u8)?;
+                Ok(())
+            }
+            POP_MEM16 => {
                 let memory_add = self.fetch_u16()? as usize;
                 let value = self.pop()?;
 
@@ -378,20 +546,27 @@ impl CPU {
             // Pop stack head to memory address pointed by register
             POP_PTRREG => {
                 let reg = self.fetch_reg()?;
-                let add = self.registers.get_memory_at_u16(reg * 2)? as usize;
-                let value = self.pop()?;
 
-                #[cfg(debug_assertions)]
-                {
-                    let reg_name = REGISTER_NAMES[reg];
-                    println!(
-                        "Pop {:#06X} (value on stack) to memory {:#06X} pointed by {}, increment stack pointer",
-                        value, add, reg_name
-                    );
+                match SIZE_OF[reg] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        let add = self.registers.get_memory_at_u16(ADDRESS_OF[reg])?;
+                        let value = self.pop()?;
+
+                        #[cfg(debug_assertions)]
+                        {
+                            let reg_name = REGISTER_NAMES[reg];
+                            println!(
+                                "Pop {:#06X} (value on stack) to memory {:#06X} pointed by {}, increment stack pointer",
+                                value, add, reg_name
+                            );
+                        }
+
+                        self.memory.set_memory_at_u16(add as usize, value)?;
+                        Ok(())
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                 }
-
-                self.memory.set_memory_at_u16(add, value)?;
-                Ok(())
             }
             // call a function with literal address
             CALL_LIT => {
@@ -400,33 +575,37 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 println!("Call a subroutine at {:#06X} with literal", address);
 
-                self.call(address)?;
-                Ok(())
+                self.call(address)
             }
             // call a function with a register value
             CALL_REG => {
                 let reg = self.fetch_reg()?;
-                let address = self.registers.get_memory_at_u16(reg * 2)?;
 
-                #[cfg(debug_assertions)]
-                {
-                    let reg_name = REGISTER_NAMES[reg];
-                    println!(
-                        "Call a subroutine at {:#06X} (stored in register {})",
-                        address, reg_name
-                    );
+                match SIZE_OF[reg] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        let address = self.registers.get_memory_at_u16(ADDRESS_OF[reg])?;
+
+                        #[cfg(debug_assertions)]
+                        {
+                            let reg_name = REGISTER_NAMES[reg];
+                            println!(
+                                "Call a subroutine at {:#06X} (stored in register {})",
+                                address, reg_name
+                            );
+                        }
+
+                        self.call(address)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                 }
-
-                self.call(address)?;
-                Ok(())
             }
             // return from subroutine
             RET => {
                 #[cfg(debug_assertions)]
                 println!("Return from a subroutine");
 
-                self.restor()?;
-                Ok(())
+                self.restor()
             }
             // Xor register with other register
             XOR_REG_REG => {
@@ -440,9 +619,10 @@ impl CPU {
                     println!("Xor {} and {}, in {}", r1n, r2n, r1n);
                 }
 
-                let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
-                let r2_value = self.registers.get_memory_at_u16(r2 * 2)?;
-                self.registers.set_memory_at_u16(r1 * 2, r1_value ^ r2_value)?;
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+                let res = r1_value ^ r2_value;
+                register!(self, r1 => res)?;
                 Ok(())
             }
             // Xor register with literal
@@ -456,8 +636,9 @@ impl CPU {
                     println!("Xor {} and {:#06X}, in {}", r1n, literal, r1n);
                 }
 
-                let r1_value = self.registers.get_memory_at_u16(r1 * 2)?;
-                self.registers.set_memory_at_u16(r1 * 2, r1_value ^ literal)?;
+                let val = register!(self, r1)?;
+                let res = val ^ literal;
+                register!(self, r1 => res)?;
                 Ok(())
             }
             // End execution
@@ -479,16 +660,15 @@ impl CPU {
         }
     }
 
-    fn push(&mut self, value: u16) -> Result<(), MemoryError> {
+    fn push(&mut self, value: u16) -> Result<(), ExecutionError> {
         let sp_address = self.get_register("sp")?;
         self.memory.set_memory_at_u16(sp_address as usize, value)?;
 
         self.stack_frame_size += 2;
-        self.set_register("sp", sp_address - 2)?;
-        Ok(())
+        Ok(self.set_register("sp", sp_address - 2)?)
     }
 
-    fn pop(&mut self) -> Result<u16, MemoryError> {
+    fn pop(&mut self) -> Result<u16, ExecutionError> {
         let head = self.get_register("sp")? + 2;
         self.set_register("sp", head)?;
 
@@ -498,8 +678,8 @@ impl CPU {
 
     // This methode save all registers in the stack and create a new stackframe.
     // Once the stackframe is created, the function jump to `address` given
-    fn call(&mut self, address: u16) -> Result<(), MemoryError> {
-        let reg_to_save = ["r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "ip"];
+    fn call(&mut self, address: u16) -> Result<(), ExecutionError> {
+        let reg_to_save = ["ax", "bx", "cx", "dx", "ex", "fx", "gx", "hx", "ip"];
 
         // save all registers from R1 to R8 plus ip
         for reg in reg_to_save.iter() {
@@ -520,7 +700,7 @@ impl CPU {
 
     // This methode save all registers in the stack and create a new stackframe.
     // Once the stackframe is created, the function jump to `address` given
-    fn restor(&mut self) -> Result<(), MemoryError> {
+    fn restor(&mut self) -> Result<(), ExecutionError> {
         // erase the current stackframe
         let fp_addr = self.get_register("fp")?;
         self.set_register("sp", fp_addr)?;
@@ -534,7 +714,7 @@ impl CPU {
         self.set_register("fp", sf_size)?;
 
         // Restor all registers, in reverse order than `call` do
-        let reg_to_load = ["ip", "r8", "r7", "r6", "r5", "r4", "r3", "r2", "r1"];
+        let reg_to_load = ["ip", "hx", "gx", "fx", "ex", "dx", "cx", "bx", "ax"];
         for reg in reg_to_load.iter() {
             let stack_value = self.pop()?;
             self.set_register(reg, stack_value)?;
@@ -551,7 +731,7 @@ impl CPU {
     pub fn step(&mut self) -> bool {
         match self.fetch_u8() {
             Ok(int) => match self.execute(int) {
-                Ok(_ok) => true,
+                Ok(_) => true,
                 Err(err) => {
                     match err {
                         ExecutionError::EndOfExecution => (),
@@ -611,16 +791,13 @@ impl Default for CPU {
         memory.add_device(Box::new(screen), 0x3000);
 
         let mut registers = Memory::new(REGISTER_NAMES.len() * 2);
-        // 10 is the index of SP; - 1 for the length and -1 because 2 bytes
-        registers.set_memory_at_u16(10 * 2, (0xFFFF - 1) as u16).unwrap();
-        // 11 is the index of FP; - 1 for the length and -1 because 2 bytes
-        registers.set_memory_at_u16(11 * 2, (0xFFFF - 1) as u16).unwrap();
+        registers.set_memory_at_u16(ADDRESS_OF[SP as usize], 0xFFFE).unwrap();
+        registers.set_memory_at_u16(ADDRESS_OF[FP as usize], 0xFFFE).unwrap();
 
-        let register_map = REGISTER_NAMES
-            .to_vec()
-            .iter()
+        // HashMap gives the register_id with the register name given
+        let register_map = REGISTER_NAMES.iter()
             .fold(HashMap::new(), |mut map, s| {
-                let _ = map.insert(*s, map.len() * 2);
+                let _ = map.insert(*s, map.len());
                 map
             });
 
@@ -634,22 +811,24 @@ impl Default for CPU {
 }
 
 enum ExecutionError {
-    BadMemoryAccess,
+    InternalMemoryError(MemoryError),
     UnexpectedInstruction(u8),
+    BadRegisterPtrLen,
     EndOfExecution,
 }
 
 impl From<MemoryError> for ExecutionError {
-    fn from(_: MemoryError) -> Self {
-        Self::BadMemoryAccess
+    fn from(error: MemoryError) -> Self {
+        Self::InternalMemoryError(error)
     }
 }
 
 impl std::fmt::Debug for ExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let error = match self {
-            ExecutionError::BadMemoryAccess => "CPU try to access not allowed memory chunk !".to_owned(),
+            ExecutionError::InternalMemoryError(error) => format!("Internal memory error: {:?}", error),
             ExecutionError::UnexpectedInstruction(ins) => format!("Instruction {:#04X} is not permitted", ins),
+            ExecutionError::BadRegisterPtrLen => "Register of 8bit size can't be a memory ptr".to_owned(),
             ExecutionError::EndOfExecution => "CPU reaches end of executable code".to_owned(),
         };
 

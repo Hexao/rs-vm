@@ -8,17 +8,17 @@
     start:
     mov 0x4F *a
     mov 0x69 *b
-    mov a r1
-    mov b r2
+    mov a ax
+    mov b bx
     cal swap_mem
     mov *a acc
     jne 0x69 err
     mov *b acc
     jne 0x4F err
-    mov ok r1
+    mov ok ax
     jmp ok
     err:
-    mov err r1
+    mov err ax
     ok:
     cal print
     end
@@ -26,25 +26,22 @@
     ; swap value in memory address
     ; pointed by r1 ad r2
     swap_mem:
-    psh *r1
-    psh *r2
-    pop *r1
-    pop *r2
+    psh *ax
+    psh *bx
+    pop *ax
+    pop *bx
     ret
 
     ; print the string pointed
     ; by the value in R1
     print:
-    mov 0x3000 r2
-    mov *r1 acc
-    mov 1 r7
-    mov 2 r8
+    mov 0x3000 bx
+    mov *ax acc
     print_loop:
-    mov acc *r2
-    add r1 r8
-    mov acc r1
-    add r2 r7
-    mov acc r2
-    mov *r1 acc
+    mov acc *bx
+    inc ax
+    inc ax
+    inc bx
+    mov *ax acc
     jne 0 print_loop
     ret

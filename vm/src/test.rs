@@ -7,27 +7,13 @@ mod tests {
     fn cpu_register_test() {
         let mut cpu = CPU::default();
 
-        cpu.set_register("r1", 0x0102).unwrap();
-        cpu.set_register("r2", 0x0304).unwrap();
-        cpu.set_register("r3", 0x0506).unwrap();
-        cpu.set_register("r4", 0x0708).unwrap();
-        cpu.set_register("r5", 0x090A).unwrap();
-        cpu.set_register("r6", 0x0B0C).unwrap();
-        cpu.set_register("r7", 0x0D0E).unwrap();
-        cpu.set_register("r8", 0x0F10).unwrap();
+        cpu.set_register("ax", 0x0102).unwrap();
+        cpu.set_register("bh", 0x03).unwrap();
+        cpu.set_register("bl", 0x04).unwrap();
 
-        assert_eq!(cpu.get_register("ip").unwrap(), 0x0000);
-        assert_eq!(cpu.get_register("acc").unwrap(), 0x000);
-        assert_eq!(cpu.get_register("r1").unwrap(), 0x0102);
-        assert_eq!(cpu.get_register("r2").unwrap(), 0x0304);
-        assert_eq!(cpu.get_register("r3").unwrap(), 0x0506);
-        assert_eq!(cpu.get_register("r4").unwrap(), 0x0708);
-        assert_eq!(cpu.get_register("r5").unwrap(), 0x090A);
-        assert_eq!(cpu.get_register("r6").unwrap(), 0x0B0C);
-        assert_eq!(cpu.get_register("r7").unwrap(), 0x0D0E);
-        assert_eq!(cpu.get_register("r8").unwrap(), 0x0F10);
-        assert_eq!(cpu.get_register("sp").unwrap(), 0xFFFE);
-        assert_eq!(cpu.get_register("fp").unwrap(), 0xFFFE);
+        assert_eq!(cpu.get_register("ah").unwrap(), 0x01);
+        assert_eq!(cpu.get_register("al").unwrap(), 0x02);
+        assert_eq!(cpu.get_register("bx").unwrap(), 0x0304);
     }
 
     #[test]
@@ -36,14 +22,14 @@ mod tests {
 
         let instructions = [
             // basic addition
-            MOV_LIT_REG, 0x00, 0x10, R1,  // move 0x10 in r1 (16 bit)
-            MOV_LIT_REG, 0x00, 0x0A, R2,  // move 0x0A in r2 (16 bit)
-            ADD_REG_REG, R1,   R2,        // add r1 and r2
+            MOV_LIT_REG, 0x00, 0x10, AX,  // move 0x10 in r1 (16 bit)
+            MOV_LIT_REG, 0x00, 0x0A, BX,  // move 0x0A in r2 (16 bit)
+            ADD_REG_REG, AX,   BX,        // add r1 and r2
 
             // overfolwing addition
-            MOV_LIT_REG, 0xFF, 0xFF, R1,  // move 0x10 in r1 (16 bit)
-            MOV_LIT_REG, 0x00, 0x10, R2,  // move 0x0A in r2 (16 bit)
-            ADD_REG_REG, R1,   R2,        // add r1 and r2
+            MOV_LIT_REG, 0xFF, 0xFF, AX,  // move 0x10 in r1 (16 bit)
+            MOV_LIT_REG, 0x00, 0x10, BX,  // move 0x0A in r2 (16 bit)
+            ADD_REG_REG, AX,   BX,        // add r1 and r2
         ];
         let expected = [0x001A, 0x000F];
         cpu.set_instruction(&instructions);
@@ -61,19 +47,19 @@ mod tests {
         let mut cpu = CPU::default();
 
         let instructions = [
-            MOV_LIT_REG, 0x00, 0x01, R2,         // move 0x0001 in r2 (16 bit)
-            MOV_REG_REG, ACC,  R1,               // store accumulator value in memory address 0x0080
-            ADD_REG_REG, R1,   R2,               // add r1 and r2
+            MOV_LIT_REG, 0x00, 0x01, BX,         // move 0x0001 in r2 (16 bit)
+            MOV_REG_REG, ACC,  AX,               // store accumulator value in memory address 0x0080
+            ADD_REG_REG, AX,   BX,               // add r1 and r2
             JNE_LIT_LIT, 0x00, 0x02, 0x00, 0x04, // Jump to address 0x0000 in memory if accumulator not equal to 0x0004
-            XOR_REG_REG, R1,   R1,               // XOR register with himself to set to 0
-            XOR_REG_REG, R2,   R2,               // XOR register with himself to set to 0
+            XOR_REG_REG, AX,   AX,               // XOR register with himself to set to 0
+            XOR_REG_REG, BX,   BX,               // XOR register with himself to set to 0
             END,                                 // stop the program
         ];
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
-        assert_eq!(cpu.get_register("r1").unwrap(), 0x0000);
-        assert_eq!(cpu.get_register("r2").unwrap(), 0x0000);
+        assert_eq!(cpu.get_register("ax").unwrap(), 0x0000);
+        assert_eq!(cpu.get_register("bx").unwrap(), 0x0000);
         assert_eq!(cpu.get_register("acc").unwrap(), 0x02);
     }
 
@@ -102,20 +88,20 @@ mod tests {
     fn swap_registers_with_stack() {
         let mut cpu = CPU::default();
         let instructions = [
-            MOV_LIT_REG, 0x00, 0x4F, R1,
-            MOV_LIT_REG, 0xF4, 0x00, R2,
-            PSH_REG,     R1,
-            PSH_REG,     R2,
-            POP_REG,     R1,
-            POP_REG,     R2,
+            MOV_LIT_REG, 0x00, 0x4F, AX,
+            MOV_LIT_REG, 0xF4, 0x00, BX,
+            PSH_REG,     AX,
+            PSH_REG,     BX,
+            POP_REG,     AX,
+            POP_REG,     BX,
             END,
         ];
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
 
-        assert_eq!(cpu.get_register("r1").unwrap(), 0xF400);
-        assert_eq!(cpu.get_register("r2").unwrap(), 0x004F);
+        assert_eq!(cpu.get_register("ax").unwrap(), 0xF400);
+        assert_eq!(cpu.get_register("bx").unwrap(), 0x004F);
         assert_eq!(cpu.get_register("sp").unwrap(), 0xFFFE);
     }
 
@@ -123,27 +109,27 @@ mod tests {
     fn call_subroutine() {
         let mut cpu = CPU::default();
         let instructions = [
-            MOV_LIT_REG, 0x11, 0x11, R1, // 0x0000
-            MOV_LIT_REG, 0x33, 0x33, R3, // 0x0004
+            MOV_LIT_REG, 0x11, 0x11, AX, // 0x0000
+            MOV_LIT_REG, 0x33, 0x33, CX, // 0x0004
             PSH_LIT, 0x22, 0x22,         // 0x0008
             CALL_LIT, 0x00, 0x18,        // 0x000B
-            POP_REG, R2,                 // 0x000E
+            POP_REG, BX,                 // 0x000E
             END,                         // 0x0010
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, // next octet is 0x0018
             PSH_LIT, 0xAB, 0xCD,         // 0x0018
             PSH_LIT, 0x12, 0x34,         // 0x001B
-            MOV_LIT_REG, 0xFF, 0xFF, R2, // 0x001E
-            MOV_LIT_REG, 0xFF, 0xFF, R4, // 0x0022
+            MOV_LIT_REG, 0xFF, 0xFF, BX, // 0x001E
+            MOV_LIT_REG, 0xFF, 0xFF, CX, // 0x0022
             RET,                         // 0x0026
         ];
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
 
-        assert_eq!(cpu.get_register("r1").unwrap(), 0x1111);
-        assert_eq!(cpu.get_register("r2").unwrap(), 0x2222);
-        assert_eq!(cpu.get_register("r3").unwrap(), 0x3333);
-        assert_eq!(cpu.get_register("r4").unwrap(), 0x0000);
+        assert_eq!(cpu.get_register("ax").unwrap(), 0x1111);
+        assert_eq!(cpu.get_register("bx").unwrap(), 0x2222);
+        assert_eq!(cpu.get_register("cx").unwrap(), 0x3333);
+        assert_eq!(cpu.get_register("dx").unwrap(), 0x0000);
     }
 }

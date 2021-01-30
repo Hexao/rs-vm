@@ -11,14 +11,16 @@ pub trait MemoryIO {
 /// Enumeration of every type of memory error
 pub enum MemoryError {
     OutOfBounds(usize),
+    BadRegisterLen(u8),
+    NoRegister(&'static str),
 }
 
 impl std::fmt::Debug for MemoryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let error = match self {
-            MemoryError::OutOfBounds(address) => {
-                format!("The address {:#04X} is not in the memory", address)
-            }
+            MemoryError::OutOfBounds(address) => format!("The address {:#06X} is not in the memory", address),
+            MemoryError::BadRegisterLen(len) => format!("Expected register size 1 or 2, found {}", len),
+            MemoryError::NoRegister(name) => format!("Register {} does not exist", name),
         };
 
         write!(f, "{}", error)
