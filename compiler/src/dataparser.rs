@@ -2,95 +2,168 @@ use std::fmt::{Display, Formatter};
 use std::collections::HashMap;
 use regex::Regex;
 
-use crate::chunk::Chunk;
+use crate::{chunk::Chunk, variable::Type};
+use crate::variable::Var;
+
+enum Expect {
+    Name,
+    Type,
+    Value,
+    Separator,
+}
+
+impl Expect {
+    pub fn match_with(&self, value: usize) -> bool {
+        match &self {
+            Expect::Name => value == DataParser::VAR_NAME,
+            Expect::Type => value == DataParser::TYPE,
+            Expect::Value => matches!(value, DataParser::BINAIRY | DataParser::HEXA | DataParser::DECIMAL | DataParser::STRING),
+            Expect::Separator => value == DataParser::SEPARATOR,
+        }
+    }
+}
+
+impl Display for Expect {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Expect::Name => write!(f, "VAR_NAME"),
+            Expect::Type => write!(f, "VAR_TYPE"),
+            Expect::Value => write!(f, "VALUE"),
+            Expect::Separator => write!(f, "SEPARATOR"),
+        }
+    }
+}
 
 pub struct DataParser {
     order: Vec<String>,
-    vars: HashMap<String, (Vec<u8>, u16)>,
-}
-
-macro_rules! unpack_capture {
-    ($capture:expr) => {{
-        let el = $capture;
-        match el.get(1) {
-            Some(data) => Ok(data.as_str()),
-            None => match el.get(2) {
-                Some(data) => Ok(data.as_str()),
-                None => Err("Error while parsing data...".to_owned()),
-            },
-        }
-    }};
+    vars: HashMap<String, Var>,
 }
 
 impl DataParser {
+    const SEPARATOR: usize = 1;
+    const BINAIRY  : usize = 2;
+    const HEXA     : usize = 3;
+    const DECIMAL  : usize = 4;
+    const STRING   : usize = 5;
+    const TYPE     : usize = 6;
+    const VAR_NAME : usize = 7;
+
     pub fn new(chunk: Chunk) -> Result<Self, String> {
-        let reg = Regex::new(r#""(.+?)"\s*,?|([^\s,]+)\s*,?"#).unwrap();
+        let reg = Regex::new(r#"\s*(?:(,)|(?:0[bB]([01]+))|(?:0[xX])([0-9a-fA-F]+)|(\d+)|(?:")(.+?)(?:")|([uU](?:8|16))|([a-zA-z]\w*))"#).unwrap();
         let mut vars = HashMap::new();
         let mut order = vec![];
         let mut location = 0;
 
-        for (_id, line) in chunk.data() {
-            let mut vec = vec![];
+        for (id, line) in chunk.data() {
+            let mut name = "";
+            let mut var = Var::default();
+            let mut expect = Expect::Name;
             let mut captures = reg.captures_iter(&line);
-            let name = unpack_capture!(captures.next().unwrap())?;
-            order.push(name.to_owned());
 
             while let Some(next) = captures.next() {
-                let mut el = match next.get(1) {
-                    Some(data) => {
-                        let data = data.as_str().encode_utf16().collect::<Vec<u16>>();
-                        let mut vec = Vec::with_capacity(data.len() * 2);
-
-                        for el in data {
-                            vec.push((el >> 8) as u8);
-                            vec.push((el & 0xFF) as u8);
-                        }
-
-                        Ok(vec)
+                if next.get(DataParser::SEPARATOR).is_some() {
+                    if expect.match_with(DataParser::SEPARATOR) {
+                        expect = Expect::Value;
+                    } else {
+                        return Err(format!("On line {}, expected {}, found SEPARATOR", id, expect));
                     }
-                    None => match next.get(2) {
-                        Some(data) => {
-                            let data = data.as_str();
+                } else if let Some(bin) = next.get(DataParser::BINAIRY) {
+                    if expect.match_with(DataParser::BINAIRY) {
+                        expect = Expect::Separator;
+                        let bin = bin.as_str();
+                        let val = u16::from_str_radix(bin, 2).unwrap();
 
-                            if data.len() <= 2 {
-                                let v = match u16::from_str_radix(data, 10) {
-                                    Ok(v) => v,
-                                    Err(e) => return Err(format!("Parse error on {}: {}", data, e)),
-                                };
+                        match var.type_len() {
+                            1 => var.add_data(&mut vec![(val & 0xFF) as u8]),
+                            2 => var.add_data(&mut vec![(val >> 8) as u8, (val & 0xFF) as u8]),
+                            _ => (),
+                        }
+                    } else {
+                        return Err(format!("On line {}, expected {}, found VALUE", id, expect));
+                    }
+                } else if let Some(hex) = next.get(DataParser::HEXA) {
+                    if expect.match_with(DataParser::HEXA) {
+                        expect = Expect::Separator;
+                        let hex = hex.as_str();
+                        let val = u16::from_str_radix(hex, 16).unwrap();
 
-                                Ok(vec![(v >> 8) as u8, (v & 0xFF) as u8])
-                            } else {
-                                let v1 = data.get(0..2).unwrap();
+                        match var.type_len() {
+                            1 => var.add_data(&mut vec![(val & 0xFF) as u8]),
+                            2 => var.add_data(&mut vec![(val >> 8) as u8, (val & 0xFF) as u8]),
+                            _ => (),
+                        }
+                    } else {
+                        return Err(format!("On line {}, expected {}, found VALUE", id, expect));
+                    }
+                } else if let Some(dec) = next.get(DataParser::DECIMAL) {
+                    if expect.match_with(DataParser::DECIMAL) {
+                        expect = Expect::Separator;
+                        let dec = dec.as_str();
+                        let val = u16::from_str_radix(dec, 10).unwrap();
 
-                                let v = match v1 {
-                                    "0x" => u16::from_str_radix(data.get(2..).unwrap(), 16).unwrap(),
-                                    "0b" => u16::from_str_radix(data.get(2..).unwrap(), 2).unwrap(),
-                                    _ => match u16::from_str_radix(data, 10) {
-                                        Ok(v) => v,
-                                        Err(e) => return Err(format!("Parse error on {}: {}", data, e)),
-                                    },
-                                };
+                        match var.type_len() {
+                            1 => var.add_data(&mut vec![(val & 0xFF) as u8]),
+                            2 => var.add_data(&mut vec![(val >> 8) as u8, (val & 0xFF) as u8]),
+                            _ => (),
+                        }
+                    } else {
+                        return Err(format!("On line {}, expected {}, found VALUE", id, expect));
+                    }
+                } else if let Some(string) = next.get(DataParser::STRING) {
+                    if expect.match_with(DataParser::STRING) {
+                        expect = Expect::Separator;
+                        let string = string.as_str();
+                        let vec = string.encode_utf16().collect::<Vec<u16>>();
 
-                                Ok(vec![(v >> 8) as u8, (v & 0xFF) as u8])
+                        match var.type_len() {
+                            1 => for el in vec {
+                                var.add_data(&mut vec![(el & 0xFF) as u8]);
+                            }
+                            2 => for el in vec {
+                                var.add_data(&mut vec![(el >> 8) as u8, (el & 0xFF) as u8]);
+                            }
+                            _ => (),
+                        }
+                    } else {
+                        return Err(format!("On line {}, expected {}, found VALUE", id, expect));
+                    }
+                } else if let Some(data_type) = next.get(DataParser::TYPE) {
+                    if expect.match_with(DataParser::TYPE) {
+                        let data_type = data_type.as_str();
+
+                        match Type::from(data_type) {
+                            Type::None => return Err(format!("On line {}, found an unknown type: {}", id, data_type)),
+                            data_type => {
+                                var.set_type(data_type);
+                                expect = Expect::Value;
                             }
                         }
-                        None => Err("Error while parsing data...".to_owned()),
-                    },
-                }?;
-
-                vec.append(&mut el);
+                    } else {
+                        return Err(format!("On line {}, expected {}, found VAR_TYPE", id, expect));
+                    }
+                } else if let Some(var_name) = next.get(DataParser::VAR_NAME) {
+                    if expect.match_with(DataParser::VAR_NAME) {
+                        name = var_name.as_str();
+                        expect = Expect::Type;
+                    } else if expect.match_with(DataParser::TYPE) {
+                        return Err(format!("On line {}, found an unknown type: {}", id, var_name.as_str()));
+                    } else {
+                        return Err(format!("On line {}, expected {}, found VAR_NAME", id, expect));
+                    }
+                }
             }
 
-            let vlen = match vec.len() {
-                0 => {
-                    vec.append(&mut vec![0, 0]);
-                    2
-                }
-                vlen => vlen as u16,
-            };
+            match expect {
+                Expect::Separator => (),
+                _ => return Err(format!("On line {}, expected {}, found nothing", id, expect)),
+            }
 
-            vars.insert(name.to_owned(), (vec, location));
-            location += vlen;
+            let vlen = var.data_len();
+            var.set_location(location);
+            location += vlen as u16;
+
+            order.push(name.to_owned());
+            vars.insert(name.to_owned(), var);
         }
 
         Ok(Self { order, vars })
@@ -99,14 +172,14 @@ impl DataParser {
     pub fn data_len(&self) -> usize {
         match self.order.last() {
             Some(key) => {
-                let (v, m) = self.vars.get(key).unwrap();
-                *m as usize + v.len()
+                let v = self.vars.get(key).unwrap();
+                *v.get_location() as usize + v.data_len()
             }
             None => 0,
         }
     }
 
-    pub fn vars(&self) -> &HashMap<String, (Vec<u8>, u16)> {
+    pub fn vars(&self) -> &HashMap<String, Var> {
         &self.vars
     }
 
@@ -115,8 +188,8 @@ impl DataParser {
         let mut vec = Vec::with_capacity(data_len);
 
         for key in self.order {
-            let (data, _) = self.vars.get_mut(&key).unwrap();
-            vec.append(data);
+            let var = self.vars.get_mut(&key).unwrap();
+            vec.append(&mut var.get_data_mut());
         }
 
         vec
@@ -128,8 +201,8 @@ impl Display for DataParser {
         writeln!(f, ".data")?;
 
         for var in &self.order {
-            let (data, loc) = self.vars.get(var).unwrap();
-            writeln!(f, "{} @mem:{} => {:?}", var, loc, data)?;
+            let data = self.vars.get(var).unwrap();
+            writeln!(f, "{} @mem:{} => {:?}", var, data.get_location(), data.get_data())?;
         }
 
         Ok(())

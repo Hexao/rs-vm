@@ -74,13 +74,14 @@ impl CodeParser {
         };
 
         let mut vec = Vec::with_capacity(ins_len + data_len);
+        let mut reg_ptr = HashMap::new();
         let cmds_len = self.cmds.len();
 
         for id in 0..cmds_len {
             let id = (self.start_address + id) % cmds_len;
             let (ins, line) = &self.cmds[id];
 
-            match ins.get_code(&self.jumps_pts, vars, ins_len as u16) {
+            match ins.get_code(&self.jumps_pts, &mut reg_ptr, vars, ins_len as u16) {
                 Ok(mut v) => vec.append(&mut v),
                 Err(s) => return Err(format!("Error while compiling on line {} : {}", line, s)),
             }

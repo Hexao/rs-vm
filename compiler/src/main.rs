@@ -9,6 +9,7 @@ use chunk::Chunk;
 pub mod instructions;
 pub mod codeparser;
 pub mod dataparser;
+pub mod variable;
 pub mod chunk;
 
 #[derive(StructOpt)]
@@ -27,11 +28,7 @@ fn main() {
     let file = match File::open(format!("{}{}.vms", input_dir, args.input)) {
         Ok(file) => io::BufReader::new(file).lines(),
         Err(e) => {
-            eprintln!(
-                "Error when oppening \"{}\": {}",
-                format!("{}.vms", args.input),
-                e
-            );
+            eprintln!( "Error when oppening \"{}.vms\": {}", args.input, e);
             return;
         }
     };
@@ -46,7 +43,6 @@ fn main() {
 
             if line.starts_with('.') {
                 let chunk = Chunk::new(line.get(1..).unwrap().to_owned());
-
                 chunks.push(chunk);
             } else if let Some(chunk) = chunks.last_mut() {
                 chunk.insert_line(line, id + 1);
@@ -95,7 +91,11 @@ fn main() {
     };
 
     let out_file = args.out.unwrap_or(args.input);
-    std::fs::create_dir_all(out_dir).unwrap_or_else(|_| panic!("can't create dir '{}'", out_dir));
-    let mut out_file = File::create(format!("{}{}.vmo", out_dir, out_file)).unwrap();
-    out_file.write_all(&res).unwrap();
+    match std::fs::create_dir_all(out_dir) {
+        Ok(_) => {
+            let mut out_file = File::create(format!("{}{}.vmo", out_dir, out_file)).unwrap();
+            out_file.write_all(&res).unwrap();
+        },
+        Err(e) => eprintln!("Can't create dir '{}': {}", out_dir, e),
+    }
 }

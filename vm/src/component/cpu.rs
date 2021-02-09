@@ -26,6 +26,21 @@ macro_rules! register {
     };
 }
 
+macro_rules! flag {
+    ($self:ident, $value:ident) => {
+        $self.flags = 0;
+        if $value == 0 { $self.flags |= CPU::F_ZERO_VAL; }
+        if $value > 0x7F { $self.flags |= CPU::F_NEGATIF; }
+    };
+
+    ($self:ident, $value:ident, $carry:ident) => {
+        $self.flags = 0;
+        if $value == 0 { $self.flags |= CPU::F_ZERO_VAL; }
+        if $value > 0x7F { $self.flags |= CPU::F_NEGATIF; }
+        if $carry { $self.flags |= CPU::F_CARRY; }
+    };
+}
+
 /// CPU struct that will be the "head" of the VM.
 /// It handles everything from memory pointers to executing incomming instructions
 pub struct CPU {
@@ -33,9 +48,14 @@ pub struct CPU {
     registers: Memory,
     stack_frame_size: usize,
     register_map: HashMap<&'static str, usize>,
+    flags: u8,
 }
 
 impl CPU {
+    const F_ZERO_VAL: u8 = 1; // bit0
+    const F_NEGATIF : u8 = 2; // bit1
+    const F_CARRY   : u8 = 4; // bit2
+
     pub fn get_register(&self, name: &'static str) -> Result<u16, MemoryError> {
         match self.register_map.get(name) {
             Some(reg) => register!(self, *reg),
@@ -87,20 +107,6 @@ impl CPU {
         Ok(instruction)
     }
 
-    fn fetch_conditional_jump(&mut self, _cmp: &str) -> Result<[u16; 3], ExecutionError> {
-        let lit = self.fetch_u16()?;
-        let jmp = self.fetch_u16()?;
-        let acc = self.get_register("acc")?;
-
-        #[cfg(debug_assertions)]
-        println!(
-            "Jump to {:#06X} (memory) if {:#06X} (literal) {} to {:#06X} (acc)",
-            jmp, lit, _cmp, acc
-        );
-
-        Ok([lit, jmp, acc])
-    }
-
     fn execute(&mut self, instruction: u8) -> Result<(), ExecutionError> {
         #[cfg(debug_assertions)]
         print!("\nInstruction      : ");
@@ -117,8 +123,8 @@ impl CPU {
                     println!("Move {:#06X} (literal) in {}", literal, reg_name);
                 }
 
-                register!(self, reg => literal)?;
-                Ok(())
+                flag!(self, literal);
+                Ok(register!(self, reg => literal)?)
             }
             // Move literal directly in the memory
             MOV_LIT_MEM8 => {
@@ -131,8 +137,8 @@ impl CPU {
                     literal, memory
                 );
 
-                self.memory.set_memory_at_u8(memory, literal)?;
-                Ok(())
+                flag!(self, literal);
+                Ok(self.memory.set_memory_at_u8(memory, literal)?)
             }
             // Move literal directly in the memory
             MOV_LIT_MEM16 => {
@@ -145,8 +151,8 @@ impl CPU {
                     literal, memory
                 );
 
-                self.memory.set_memory_at_u16(memory as usize, literal)?;
-                Ok(())
+                flag!(self, literal);
+                Ok(self.memory.set_memory_at_u16(memory as usize, literal)?)
             }
             // Move register value into a specific register
             MOV_REG_REG => {
@@ -161,8 +167,9 @@ impl CPU {
                 }
 
                 let value = register!(self, reg_from)?;
-                register!(self, reg_to => value)?;
-                Ok(())
+                flag!(self, value);
+
+                Ok(register!(self, reg_to => value)?)
             }
             // Move register value into a specific memory address
             MOV_REG_MEM => {
@@ -178,10 +185,14 @@ impl CPU {
                 match SIZE_OF[reg] {
                     1 => {
                         let value = self.registers.get_memory_at_u8(ADDRESS_OF[reg])?;
+                        flag!(self, value);
+
                         Ok(self.memory.set_memory_at_u8(memory_address, value)?)
                     }
                     2 => {
                         let value = self.registers.get_memory_at_u16(ADDRESS_OF[reg])?;
+                        flag!(self, value);
+
                         Ok(self.memory.set_memory_at_u16(memory_address, value)?)
                     }
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
@@ -201,10 +212,14 @@ impl CPU {
                 match SIZE_OF[reg] {
                     1 => {
                         let value = self.memory.get_memory_at_u8(memory_address)?;
+                        flag!(self, value);
+
                         Ok(self.registers.set_memory_at_u8(ADDRESS_OF[reg], value)?)
                     }
                     2 => {
                         let value = self.memory.get_memory_at_u16(memory_address)?;
+                        flag!(self, value);
+
                         Ok(self.registers.set_memory_at_u16(ADDRESS_OF[reg], value)?)
                     }
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
@@ -213,7 +228,7 @@ impl CPU {
             // Move memory value to another memory address
 
             // Move memory value to another memory address
-            
+
             // Move a memory address pointed by register in register
             MOV_PTRREG_REG => {
                 let r1 = self.fetch_reg()?;
@@ -226,7 +241,7 @@ impl CPU {
                         let mem_val = match SIZE_OF[r2] {
                             1 => self.memory.get_memory_at_u8(mem_loc)? as u16,
                             2 => self.memory.get_memory_at_u16(mem_loc)?,
-                            x => panic!("What does mean register of size {} ?", x),
+                            x => return Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                         };
 
                         #[cfg(debug_assertions)]
@@ -239,6 +254,7 @@ impl CPU {
                             );
                         }
 
+                        flag!(self, mem_val);
                         Ok(register!(self, r2 => mem_val)?)
                     }
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
@@ -265,6 +281,7 @@ impl CPU {
                             );
                         }
 
+                        flag!(self, val);
                         match SIZE_OF[r1] {
                             1 => Ok(self.memory.set_memory_at_u8(mem_loc, val as u8)?),
                             2 => Ok(self.memory.set_memory_at_u16(mem_loc, val)?),
@@ -284,56 +301,74 @@ impl CPU {
                 Ok(())
             }
             // Jump to provided memory address if literal equal to accumulator value
-            JEQ_LIT_LIT => {
-                let [lit, jmp_add, acc] = self.fetch_conditional_jump("==")?;
+            JEQ_LIT => {
+                let add = self.fetch_u16()?;
 
-                if lit == acc {
-                    self.set_register("ip", jmp_add)?;
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory) if flag ZERO is set to true", add);
+
+                if (self.flags & CPU::F_ZERO_VAL) != 0 { // flag f_zero_val is on
+                    self.set_register("ip", add)?;
                 }
                 Ok(())
             }
             // Jump to provided memory address if literal not equal to accumulator value
-            JNE_LIT_LIT => {
-                let [lit, jmp_add, acc] = self.fetch_conditional_jump("!=")?;
+            JNE_LIT => {
+                let add = self.fetch_u16()?;
 
-                if lit != acc {
-                    self.set_register("ip", jmp_add)?;
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory) if flag ZERO is set to false", add);
+
+                if (self.flags & CPU::F_ZERO_VAL) == 0 { // flag f_zero_val is off
+                    self.set_register("ip", add)?;
                 }
                 Ok(())
             }
             // Jump to provided memory address if literal is greater than accumulator value
-            JGT_LIT_LIT => {
-                let [lit, jmp_add, acc] = self.fetch_conditional_jump(">")?;
+            JGT_LIT => {
+                let add = self.fetch_u16()?;
 
-                if lit > acc {
-                    self.set_register("ip", jmp_add)?;
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory) if flags ZERO and NEGATIF are set to false", add);
+
+                if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == 0 {
+                    self.set_register("ip", add)?;
                 }
                 Ok(())
             }
             // Jump to provided memory address if literal is greater or equal to accumulator value
-            JGE_LIT_LIT => {
-                let [lit, jmp_add, acc] = self.fetch_conditional_jump(">=")?;
+            JGE_LIT => {
+                let add = self.fetch_u16()?;
 
-                if lit >= acc {
-                    self.set_register("ip", jmp_add)?;
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory) if flag NEGATIF is set to false", add);
+
+                if (self.flags & CPU::F_NEGATIF) == 0 {
+                    self.set_register("ip", add)?;
                 }
                 Ok(())
             }
             // Jump to provided memory address if literal is less than accumulator value
-            JLT_LIT_LIT => {
-                let [lit, jmp_add, acc] = self.fetch_conditional_jump("<")?;
+            JLT_LIT => {
+                let add = self.fetch_u16()?;
 
-                if lit < acc {
-                    self.set_register("ip", jmp_add)?;
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory) if flag ZERO is set to false and flag NEGATIF is set to true", add);
+
+                if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == CPU::F_NEGATIF { // not equal + neg
+                    self.set_register("ip", add)?;
                 }
                 Ok(())
             }
             // Jump to provided memory address if literal is less or equal to accumulator value
-            JLE_LIT_LIT => {
-                let [lit, jmp_add, acc] = self.fetch_conditional_jump("<=")?;
+            JLE_LIT => {
+                let add = self.fetch_u16()?;
 
-                if lit <= acc {
-                    self.set_register("ip", jmp_add)?;
+                #[cfg(debug_assertions)]
+                println!("Jump to {:#06X} (memory) if flag NEGATIF is set to true", add);
+
+                if (self.flags & CPU::F_NEGATIF) != 0 {
+                    self.set_register("ip", add)?;
                 }
                 Ok(())
             }
@@ -352,8 +387,10 @@ impl CPU {
                 let r1_value = register!(self, r1)?;
                 let r2_value = register!(self, r2)?;
 
-                self.set_register("acc", r1_value.overflowing_add(r2_value).0)?;
-                Ok(())
+                let (res, carry) = r1_value.overflowing_add(r2_value);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
             }
             // Add register with literal
             ADD_REG_LIT => {
@@ -367,9 +404,42 @@ impl CPU {
                 }
 
                 let reg_val = register!(self, reg)?;
-                let res = val.overflowing_add(reg_val).0;
+                let (res, carry) = val.overflowing_add(reg_val);
+                flag!(self, res, carry);
 
                 Ok(self.set_register("acc", res)?)
+            }
+            CMP_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1_name = REGISTER_NAMES[r1];
+                    let r2_name = REGISTER_NAMES[r2];
+                    println!("Compare {} and {} values", r1_name, r2_name);
+                }
+
+                let r1_val = register!(self, r1)?;
+                let r2_val = register!(self, r2)?;
+                let (res, carry) = r1_val.overflowing_sub(r2_val);
+                flag!(self, res, carry);
+                Ok(())
+            }
+            CMP_REG_LIT => {
+                let reg = self.fetch_reg()?;
+                let lit = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Compare {} value with {:#06X}", reg_name, lit);
+                }
+
+                let reg_val = register!(self, reg)?;
+                let (res, carry) = reg_val.overflowing_sub(lit);
+                flag!(self, res, carry);
+                Ok(())
             }
             // Increment register value by one
             INC_REG => {
@@ -385,12 +455,16 @@ impl CPU {
                 match SIZE_OF[reg] {
                     1 => {
                         let val = self.registers.get_memory_at_u8(add)?;
-                        let res = val.overflowing_add(1).0;
+                        let (res, carry) = val.overflowing_add(1);
+                        flag!(self, res, carry);
+
                         Ok(self.registers.set_memory_at_u8(add, res)?)
                     }
                     2 => {
                         let val = self.registers.get_memory_at_u16(add)?;
-                        let res = val.overflowing_add(1).0;
+                        let (res, carry) = val.overflowing_add(1);
+                        flag!(self, res, carry);
+
                         Ok(self.registers.set_memory_at_u16(add, res)?)
                     }
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
@@ -410,12 +484,16 @@ impl CPU {
                 match SIZE_OF[reg] {
                     1 => {
                         let val = self.registers.get_memory_at_u8(add)?;
-                        let res = val.overflowing_sub(1).0;
+                        let (res, carry) = val.overflowing_sub(1);
+                        flag!(self, res, carry);
+
                         Ok(self.registers.set_memory_at_u8(add, res)?)
                     }
                     2 => {
                         let val = self.registers.get_memory_at_u16(add)?;
-                        let res = val.overflowing_sub(1).0;
+                        let (res, carry) = val.overflowing_sub(1);
+                        flag!(self, res, carry);
+
                         Ok(self.registers.set_memory_at_u16(add, res)?)
                     }
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
@@ -431,6 +509,7 @@ impl CPU {
                     value
                 );
 
+                flag!(self, value);
                 self.push(value)
             }
             // Push register on stack
@@ -447,6 +526,7 @@ impl CPU {
                     );
                 }
 
+                flag!(self, value);
                 self.push(value)
             }
             // Push memory on stack
@@ -460,6 +540,7 @@ impl CPU {
                     value, memory_add
                 );
 
+                flag!(self, value);
                 self.push(value as u16)
             }
             // Push memory on stack
@@ -473,10 +554,36 @@ impl CPU {
                     value, memory_add
                 );
 
+                flag!(self, value);
                 self.push(value)
             }
             // Push memory poinyed by register on stack
-            PSH_PTRREG => {
+            PSH_PTRREG8 => {
+                let reg = self.fetch_reg()?;
+
+                match SIZE_OF[reg] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        let add = self.registers.get_memory_at_u16(ADDRESS_OF[reg])? as usize;
+                        let value = self.memory.get_memory_at_u8(add)? as u16;
+
+                        #[cfg(debug_assertions)]
+                        {
+                            let reg_name = REGISTER_NAMES[reg];
+                            println!(
+                                "Push {:#04X} (value on memory {:#06X} pointed by {}) on stack, decrement stack pointer",
+                                value, add, reg_name
+                            );
+                        }
+
+                        flag!(self, value);
+                        self.push(value)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                }
+            }
+            // Push memory poinyed by register on stack
+            PSH_PTRREG16 => {
                 let reg = self.fetch_reg()?;
 
                 match SIZE_OF[reg] {
@@ -494,6 +601,7 @@ impl CPU {
                             );
                         }
 
+                        flag!(self, value);
                         self.push(value)
                     }
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
@@ -513,6 +621,7 @@ impl CPU {
                     );
                 }
 
+                flag!(self, value);
                 register!(self, reg => value)?;
                 Ok(())
             }
@@ -527,6 +636,7 @@ impl CPU {
                     value, memory_add
                 );
 
+                flag!(self, value);
                 self.memory.set_memory_at_u8(memory_add, value as u8)?;
                 Ok(())
             }
@@ -540,11 +650,37 @@ impl CPU {
                     value, memory_add
                 );
 
+                flag!(self, value);
                 self.memory.set_memory_at_u16(memory_add, value)?;
                 Ok(())
             }
             // Pop stack head to memory address pointed by register
-            POP_PTRREG => {
+            POP_PTRREG8 => {
+                let reg = self.fetch_reg()?;
+
+                match SIZE_OF[reg] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        let add = self.registers.get_memory_at_u16(ADDRESS_OF[reg])?;
+                        let value = self.pop()? as u8;
+
+                        #[cfg(debug_assertions)]
+                        {
+                            let reg_name = REGISTER_NAMES[reg];
+                            println!(
+                                "Pop {:#04X} (value on stack) to memory {:#06X} pointed by {}, increment stack pointer",
+                                value, add, reg_name
+                            );
+                        }
+
+                        flag!(self, value);
+                        Ok(self.memory.set_memory_at_u8(add as usize, value)?)
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
+                }
+            }
+            // Pop stack head to memory address pointed by register
+            POP_PTRREG16 => {
                 let reg = self.fetch_reg()?;
 
                 match SIZE_OF[reg] {
@@ -562,8 +698,8 @@ impl CPU {
                             );
                         }
 
-                        self.memory.set_memory_at_u16(add as usize, value)?;
-                        Ok(())
+                        flag!(self, value);
+                        Ok(self.memory.set_memory_at_u16(add as usize, value)?)
                     }
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                 }
@@ -622,8 +758,9 @@ impl CPU {
                 let r1_value = register!(self, r1)?;
                 let r2_value = register!(self, r2)?;
                 let res = r1_value ^ r2_value;
-                register!(self, r1 => res)?;
-                Ok(())
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
             }
             // Xor register with literal
             XOR_REG_LIT => {
@@ -638,8 +775,9 @@ impl CPU {
 
                 let val = register!(self, r1)?;
                 let res = val ^ literal;
-                register!(self, r1 => res)?;
-                Ok(())
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
             }
             // End execution
             END => {
@@ -788,7 +926,7 @@ impl Default for CPU {
     fn default() -> Self {
         let mut memory = MemoryMap::default();
         let screen = Screen::new(64, 64);
-        memory.add_device(Box::new(screen), 0x3000);
+        memory.add_device(Box::new(screen), 0x3000).unwrap();
 
         let mut registers = Memory::new(REGISTER_NAMES.len() * 2);
         registers.set_memory_at_u16(ADDRESS_OF[SP as usize], 0xFFFE).unwrap();
@@ -806,6 +944,7 @@ impl Default for CPU {
             registers,
             stack_frame_size: 0,
             register_map,
+            flags: 0,
         }
     }
 }
