@@ -72,9 +72,19 @@ impl MemoryIO for Screen {
         Ok(0)
     }
 
-    /// use the data for execute some specific instructions on the screen, ignore location
-    fn set_memory_at_u8(&mut self, _location: usize, data: u8) -> Result<(), MemoryError> {
-        self.exec_code(data);
+    /// puts specific char on the screen. the char location is specified by `location`, obviously.
+    /// the `data` will be used to print one character on the screen
+    fn set_memory_at_u8(&mut self, location: usize, data: u8) -> Result<(), MemoryError> {
+        let x = location % self.width;
+        let y = location / self.width;
+
+        if y >= self.height {
+            return Err(memory_io::MemoryError::OutOfBounds(location));
+        }
+
+        self.move_to(x + 1, y + 1);
+        let character = std::char::from_u32(data as u32).unwrap();
+        print!("{}", character);
 
         Ok(())
     }
@@ -88,7 +98,7 @@ impl MemoryIO for Screen {
         let y = location / self.width;
 
         if y >= self.height {
-            return Err(memory_io::MemoryError::OutOfBounds(location))
+            return Err(memory_io::MemoryError::OutOfBounds(location));
         }
 
         self.move_to(x + 1, y + 1);

@@ -1,14 +1,15 @@
 use std::io::{self, BufRead, Write};
 use structopt::StructOpt;
 use std::fs::File;
-use chunk::Chunk;
 
 use codeparser::CodeParser;
 use dataparser::DataParser;
+use chunk::Chunk;
 
 pub mod instructions;
 pub mod codeparser;
 pub mod dataparser;
+pub mod variable;
 pub mod chunk;
 
 #[derive(StructOpt)]
@@ -22,10 +23,15 @@ fn main() {
     let args: Args = Args::from_args();
     let input_dir = "data/scripts/";
     let out_dir = "data/output/";
-
-    let file = File::open(format!("{}{}.vms", input_dir, args.input)).unwrap();
-    let file = io::BufReader::new(file).lines();
     let mut chunks = vec![];
+
+    let file = match File::open(format!("{}{}.vms", input_dir, args.input)) {
+        Ok(file) => io::BufReader::new(file).lines(),
+        Err(e) => {
+            eprintln!( "Error when oppening \"{}.vms\": {}", args.input, e);
+            return;
+        }
+    };
 
     for (id, line) in file.enumerate() {
         if let Ok(line) = line {
@@ -37,7 +43,6 @@ fn main() {
 
             if line.starts_with('.') {
                 let chunk = Chunk::new(line.get(1..).unwrap().to_owned());
-
                 chunks.push(chunk);
             } else if let Some(chunk) = chunks.last_mut() {
                 chunk.insert_line(line, id + 1);
@@ -78,7 +83,7 @@ fn main() {
                 eprintln!("{}", s);
                 return;
             }
-        }
+        },
         None => {
             eprintln!("Error on compilation: '.code' segment is required!");
             return;
@@ -86,9 +91,11 @@ fn main() {
     };
 
     let out_file = args.out.unwrap_or(args.input);
-    std::fs::create_dir_all(out_dir).unwrap_or_else(|_|
-        panic!("can't create dir '{}'", out_dir)
-    );
-    let mut out_file = File::create(format!("{}{}.vmo", out_dir, out_file)).unwrap();
-    out_file.write_all(&res).unwrap();
+    match std::fs::create_dir_all(out_dir) {
+        Ok(_) => {
+            let mut out_file = File::create(format!("{}{}.vmo", out_dir, out_file)).unwrap();
+            out_file.write_all(&res).unwrap();
+        },
+        Err(e) => eprintln!("Can't create dir '{}': {}", out_dir, e),
+    }
 }

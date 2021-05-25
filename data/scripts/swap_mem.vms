@@ -1,50 +1,48 @@
 .data
-    a 0
-    b 0
-    ok "les variable a et b ont été échangés", 0
-    err "a ou b n'as pas la bonne valeur", 0
+    a u8 0
+    b u8 0
+    ok u8 "les variable a et b ont été échangés", 0
+    err u8 "a ou b n'as pas la bonne valeur", 0
+
 
 .code
     start:
-    mov 0x4F a
-    mov 0x69 b
-    mov a r1
-    mov b r2
+    mov 0x4F *a
+    mov 0x69 *b
+    mov a ax
+    mov b bx
     cal swap_mem
-    mov *a acc
-    jne 0x69 err
-    mov *b acc
-    jne 0x4F err
-    mov ok r1
+    mov *a ch
+    mov *b cl
+    cmp cx 0x694F
+    jne err
+    mov ok ax
     jmp ok
     err:
-    mov err r1
+    mov err ax
     ok:
-    cal print
+    cal print_u8
     end
 
     ; swap value in memory address
     ; pointed by r1 ad r2
     swap_mem:
-    mov *r1 r3
-    mov *r2 r4
-    mov r3 *r2
-    mov r4 *r1
+    psh *ax
+    psh *bx
+    pop *ax
+    pop *bx
     ret
 
     ; print the string pointed
     ; by the value in R1
-    print:
-    mov *screen r2
-    mov *r1 acc
-    mov 1 r7
-    mov 2 r8
+    print_u8:
+    mov 0x3000 bx
+    mov *ax cl
     print_loop:
-    mov acc *r2
-    add r1 r8
-    mov acc r1
-    add r2 r7
-    mov acc r2
-    mov *r1 acc
-    jne 0 print_loop
+    mov cl *bx
+    inc ax
+    inc bx
+    mov *ax cl
+    cmp cl 0
+    jne print_loop
     ret
