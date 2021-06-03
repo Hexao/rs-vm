@@ -807,7 +807,10 @@ impl CPU {
     }
 
     fn pop(&mut self) -> Result<u16, ExecutionError> {
-        let head = self.get_register("sp")? + 2;
+        let (head, carry) = self.get_register("sp")?.overflowing_add(2);
+        if carry {
+            return Err(ExecutionError::BadReturn);
+        }
         self.set_register("sp", head)?;
 
         self.stack_frame_size -= 2;
@@ -954,6 +957,7 @@ enum ExecutionError {
     UnexpectedInstruction(u8),
     BadRegisterPtrLen,
     EndOfExecution,
+    BadReturn,
 }
 
 impl From<MemoryError> for ExecutionError {
@@ -968,6 +972,7 @@ impl std::fmt::Debug for ExecutionError {
             ExecutionError::InternalMemoryError(error) => format!("Internal memory error: {:?}", error),
             ExecutionError::UnexpectedInstruction(ins) => format!("Instruction {:#04X} is not permitted", ins),
             ExecutionError::BadRegisterPtrLen => "Register of 8bit size can't be a memory ptr".to_owned(),
+            ExecutionError::BadReturn => "Can't return outside of stackframe".to_owned(),
             ExecutionError::EndOfExecution => "CPU reaches end of executable code".to_owned(),
         };
 
