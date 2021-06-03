@@ -291,7 +291,7 @@ impl CPU {
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
                 }
             }
-            // Move value from register to memory address pointed by register
+            // Move value from memory address = [literal + register] to register
             MOV_LITOFF_REG => {
                 let base_address = self.fetch_u16()? as usize;
                 let r1 = self.fetch_reg()?;
@@ -437,6 +437,97 @@ impl CPU {
 
                 let reg_val = register!(self, reg)?;
                 let (res, carry) = val.overflowing_add(reg_val);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Substract register to register
+            SUB_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("Substract {} from {}, store result in ACC", r1n, r2n);
+                }
+
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+
+                let (res, carry) = r2_value.overflowing_sub(r1_value);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Substract register with literal
+            SUB_REG_LIT => {
+                let reg = self.fetch_reg()?;
+                let val = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Substract {} from {:#06X}, store result in ACC", reg_name, val);
+                }
+
+                let reg_val = register!(self, reg)?;
+                let (res, carry) = val.overflowing_sub(reg_val);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Substract register with literal
+            SUB_LIT_REG => {
+                let val = self.fetch_u16()?;
+                let reg = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Substract {:#06X} from {}, store result in ACC", val, reg_name);
+                }
+
+                let reg_val = register!(self, reg)?;
+                let (res, carry) = reg_val.overflowing_sub(val);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Multiply register to register
+            MUL_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("Multiply {} and {}, store result in ACC", r1n, r2n);
+                }
+
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+
+                let (res, carry) = r1_value.overflowing_mul(r2_value);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Multiply register with literal
+            MUL_REG_LIT => {
+                let reg = self.fetch_reg()?;
+                let val = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Multiply {} and {:#06X}, store result in ACC", reg_name, val);
+                }
+
+                let reg_val = register!(self, reg)?;
+                let (res, carry) = val.overflowing_mul(reg_val);
                 flag!(self, res, carry);
 
                 Ok(self.set_register("acc", res)?)

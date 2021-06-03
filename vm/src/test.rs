@@ -141,6 +141,92 @@ mod tests {
     }
 
     #[test]
+    fn test_subtractions() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_REG,  0x00, 0x04, AH,
+            MOV_LIT_REG, 0x00, 0x03, AL,
+            SUB_REG_REG, AL, AH,
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("ah").unwrap(), 0x04);
+        assert_eq!(cpu.get_register("al").unwrap(), 0x03);
+        assert_eq!(cpu.get_register("ax").unwrap(), 0x0403);
+        assert_eq!(cpu.get_register("acc").unwrap(), 0x0001);
+    }
+
+    #[test]
+    fn test_subtractions2() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_REG,  0x00, 0x04, AH,
+            SUB_LIT_REG, 0x00, 0x03, AH,
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("ah").unwrap(), 0x04);
+        assert_eq!(cpu.get_register("acc").unwrap(), 0x0001);
+    }
+
+    #[test]
+    fn test_subtractions3() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_REG,  0x00, 0x04, AH,
+            SUB_REG_LIT, AH, 0x00, 0x05,
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("ah").unwrap(), 0x04);
+        assert_eq!(cpu.get_register("acc").unwrap(), 0x0001);
+    }
+
+    #[test]
+    fn test_multiplication() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_REG,  0x00, 0x04, AH,
+            MOV_LIT_REG, 0x00, 0x03, AL,
+            MUL_REG_REG, AL, AH,
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("ah").unwrap(), 0x04);
+        assert_eq!(cpu.get_register("al").unwrap(), 0x03);
+        assert_eq!(cpu.get_register("ax").unwrap(), 0x0403);
+        assert_eq!(cpu.get_register("acc").unwrap(), 0x000C);
+    }
+
+    #[test]
+    fn test_multiplication2() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_REG,  0x00, 0x04, AH,
+            MUL_REG_LIT, AH, 0x00, 0x03,
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("ah").unwrap(), 0x04);
+        assert_eq!(cpu.get_register("acc").unwrap(), 0x000C);
+    }
+
+    #[test]
     fn call_subroutine() {
         let mut cpu = CPU::default();
         let instructions = [
