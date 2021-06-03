@@ -46,7 +46,16 @@ pub const CALL_LIT      : u8 = 0x50;
 pub const CALL_REG      : u8 = 0x51;
 pub const RET           : u8 = 0x52;
 
-pub const XOR_REG_REG   : u8 = 0x60;
-pub const XOR_REG_LIT   : u8 = 0x61;
+pub const LSF_REG_REG   : u8 = 0x60;
+pub const LSF_REG_LIT   : u8 = 0x61;
+pub const RSF_REG_REG   : u8 = 0x62;
+pub const RSF_REG_LIT   : u8 = 0x63;
+pub const AND_REG_REG   : u8 = 0x64;
+pub const AND_REG_LIT   : u8 = 0x65;
+pub const OR_REG_REG    : u8 = 0x66;
+pub const OR_REG_LIT    : u8 = 0x67;
+pub const XOR_REG_REG   : u8 = 0x68;
+pub const XOR_REG_LIT   : u8 = 0x69;
+pub const NOT           : u8 = 0x6A;
 
 pub const END           : u8 = 0xFF;

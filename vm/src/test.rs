@@ -227,6 +227,55 @@ mod tests {
     }
 
     #[test]
+    fn test_shifts() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_REG,  0x00, 0x01, AL,
+            MOV_LIT_REG,  0x00, 0x01, BL,
+            MOV_LIT_REG,  0x00, 0x02, CL,
+            LSF_REG_LIT, AL, 0x00, 0x02,
+            RSF_REG_LIT, AL, 0x00, 0x02,
+            LSF_REG_REG, BL, CL,
+            RSF_REG_REG, BL, CL,
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("al").unwrap(), 0x01);
+        assert_eq!(cpu.get_register("bl").unwrap(), 0x01);
+        assert_eq!(cpu.get_register("cl").unwrap(), 0x02);
+    }
+
+    #[test]
+    fn test_and_or_xor_not() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_REG,  0x01, 0x01, AX,
+            MOV_LIT_REG,  0x01, 0x01, BX,
+            MOV_LIT_REG,  0x01, 0x01, CX,
+            MOV_LIT_REG,  0x01, 0x01, DX,
+            AND_REG_LIT, AH, 0x00, 0x03,
+            OR_REG_LIT, AL, 0x00, 0x03,
+            XOR_REG_LIT, BL, 0x00, 0x03,
+            NOT, BH,
+            AND_REG_REG, CH, AH,
+            OR_REG_REG, CL, BL,
+            XOR_REG_REG, DH, DL,
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("ax").unwrap(), 0x0103);
+        assert_eq!(cpu.get_register("bx").unwrap(), 0xFE02);
+        assert_eq!(cpu.get_register("cx").unwrap(), 0x0103);
+        assert_eq!(cpu.get_register("dx").unwrap(), 0x0001);
+    }
+
+    #[test]
     fn call_subroutine() {
         let mut cpu = CPU::default();
         let instructions = [
