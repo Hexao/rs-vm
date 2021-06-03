@@ -30,12 +30,21 @@ Order of register is as following: `ip`, `acc`, `ax`, `bx`, `cx`, `dx`, `ex`, `f
 ## Instruction
 
 - `mov` `x` `y` (move `x` in `y`):
-    - `x` = register, memory (as u8 or u16), literal, register pointer (as u8 or u16)
+    - `x` = register, memory (as u8 or u16), literal, register pointer (as u8 or u16), literal + register (as an offset)
     - `y` = register, memory (as u8 or u16), register pointer (as u8 or u16)
 - `add` `x` `y` (add `x` and `y` in register acc):
     - `x` = register
     - `y` = literal, register
     - `x` + `y` > 65535 -> flag Carry == 0100
+- `sub` `x` `y` (sub `x` and `y` in register acc):
+    - `x` = literal, register
+    - `y` = literal, register
+    - `x` - `y` < 0 -> flag Carry == 0100
+    - `x` and `y` can't be both literal
+- `mult` `x` `y` (mul `x` and `y` in register acc):
+    - `x` = register
+    - `y` = literal, register
+    - `x` * `y` > 65535 -> flag Carry == 0100
 - `cmp` `x` `y` (update flag by comparing `x` and `y`):
     - `x` = register
     - `y` = literal, register
