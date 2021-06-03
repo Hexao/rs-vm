@@ -291,6 +291,38 @@ impl CPU {
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
                 }
             }
+            // Move value from memory address = [literal + register] to register
+            MOV_LITOFF_REG => {
+                let base_address = self.fetch_u16()? as usize;
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                match SIZE_OF[r1] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        
+                        let offset = self.registers.get_memory_at_u16(r1)? as usize;
+                        let val = self.memory.get_memory_at_u16( base_address + offset)?;
+
+                        #[cfg(debug_assertions)]
+                        {
+                            let r2_name = REGISTER_NAMES[r2];
+                            println!(
+                                "Move value {:#06X} from {:#06X} in memory to {}",
+                                val, base_address + offset, r2_name
+                            );
+                        }
+
+                        flag!(self, val);
+                        match SIZE_OF[r2] {
+                            1 => Ok(self.registers.set_memory_at_u8(ADDRESS_OF[r2], val as u8)?),
+                            2 => Ok(self.registers.set_memory_at_u16(ADDRESS_OF[r2], val)?),
+                            x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                        }
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                }
+            }
             JMP_LIT => {
                 let address_to_jmp = self.fetch_u16()?;
 
@@ -405,6 +437,97 @@ impl CPU {
 
                 let reg_val = register!(self, reg)?;
                 let (res, carry) = val.overflowing_add(reg_val);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Substract register to register
+            SUB_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("Substract {} from {}, store result in ACC", r1n, r2n);
+                }
+
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+
+                let (res, carry) = r2_value.overflowing_sub(r1_value);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Substract register with literal
+            SUB_REG_LIT => {
+                let reg = self.fetch_reg()?;
+                let val = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Substract {} from {:#06X}, store result in ACC", reg_name, val);
+                }
+
+                let reg_val = register!(self, reg)?;
+                let (res, carry) = val.overflowing_sub(reg_val);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Substract register with literal
+            SUB_LIT_REG => {
+                let val = self.fetch_u16()?;
+                let reg = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Substract {:#06X} from {}, store result in ACC", val, reg_name);
+                }
+
+                let reg_val = register!(self, reg)?;
+                let (res, carry) = reg_val.overflowing_sub(val);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Multiply register to register
+            MUL_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("Multiply {} and {}, store result in ACC", r1n, r2n);
+                }
+
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+
+                let (res, carry) = r1_value.overflowing_mul(r2_value);
+                flag!(self, res, carry);
+
+                Ok(self.set_register("acc", res)?)
+            }
+            // Multiply register with literal
+            MUL_REG_LIT => {
+                let reg = self.fetch_reg()?;
+                let val = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Multiply {} and {:#06X}, store result in ACC", reg_name, val);
+                }
+
+                let reg_val = register!(self, reg)?;
+                let (res, carry) = val.overflowing_mul(reg_val);
                 flag!(self, res, carry);
 
                 Ok(self.set_register("acc", res)?)
@@ -743,6 +866,150 @@ impl CPU {
 
                 self.restor()
             }
+            // Left shift register with other register
+            LSF_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("Left shift {} and {}, in {}", r1n, r2n, r1n);
+                }
+
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+                let res = r1_value << r2_value;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
+            // Left shift register with literal
+            LSF_REG_LIT => {
+                let r1 = self.fetch_reg()?;
+                let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    println!("Left shift {} and {:#06X}, in {}", r1n, literal, r1n);
+                }
+
+                let val = register!(self, r1)?;
+                let res = val << literal;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
+            // Right shift register with other register
+            RSF_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("Right shift {} and {}, in {}", r1n, r2n, r1n);
+                }
+
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+                let res = r1_value >> r2_value;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
+            // Right shift register with literal
+            RSF_REG_LIT => {
+                let r1 = self.fetch_reg()?;
+                let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    println!("Right shift {} and {:#06X}, in {}", r1n, literal, r1n);
+                }
+
+                let val = register!(self, r1)?;
+                let res = val >> literal;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
+            // AND register with other register
+            AND_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("AND {} and {}, in {}", r1n, r2n, r1n);
+                }
+
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+                let res = r1_value & r2_value;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
+            // AND register with literal
+            AND_REG_LIT => {
+                let r1 = self.fetch_reg()?;
+                let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    println!("AND {} and {:#06X}, in {}", r1n, literal, r1n);
+                }
+
+                let val = register!(self, r1)?;
+                let res = val & literal;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
+            // OR register with other register
+            OR_REG_REG => {
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    let r2n = REGISTER_NAMES[r2];
+                    println!("OR {} and {}, in {}", r1n, r2n, r1n);
+                }
+
+                let r1_value = register!(self, r1)?;
+                let r2_value = register!(self, r2)?;
+                let res = r1_value | r2_value;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
+            // OR register with literal
+            OR_REG_LIT => {
+                let r1 = self.fetch_reg()?;
+                let literal = self.fetch_u16()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    println!("OR {} and {:#06X}, in {}", r1n, literal, r1n);
+                }
+
+                let val = register!(self, r1)?;
+                let res = val | literal;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
             // Xor register with other register
             XOR_REG_REG => {
                 let r1 = self.fetch_reg()?;
@@ -775,6 +1042,22 @@ impl CPU {
 
                 let val = register!(self, r1)?;
                 let res = val ^ literal;
+
+                flag!(self, res);
+                Ok(register!(self, r1 => res)?)
+            }
+            // NOT register in place
+            NOT => {
+                let r1 = self.fetch_reg()?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let r1n = REGISTER_NAMES[r1];
+                    println!("NOT {}, in {}", r1n, r1n);
+                }
+
+                let val = register!(self, r1)?;
+                let res = !val;
 
                 flag!(self, res);
                 Ok(register!(self, r1 => res)?)
