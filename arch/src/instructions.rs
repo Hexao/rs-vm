@@ -8,6 +8,7 @@ pub const MOV_MEM_MEM_8 : u8 = 0x16;
 pub const MOV_MEM_MEM_16: u8 = 0x17;
 pub const MOV_PTRREG_REG: u8 = 0x18;
 pub const MOV_REG_PTRREG: u8 = 0x19;
+pub const MOV_LITOFF_REG: u8 = 0x1A;
 
 pub const ADD_REG_REG   : u8 = 0x20;
 pub const ADD_REG_LIT   : u8 = 0x21;

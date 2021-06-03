@@ -291,6 +291,38 @@ impl CPU {
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
                 }
             }
+            // Move value from register to memory address pointed by register
+            MOV_LITOFF_REG => {
+                let base_address = self.fetch_u16()? as usize;
+                let r1 = self.fetch_reg()?;
+                let r2 = self.fetch_reg()?;
+
+                match SIZE_OF[r1] {
+                    1 => Err(ExecutionError::BadRegisterPtrLen),
+                    2 => {
+                        
+                        let offset = self.registers.get_memory_at_u16(r1)? as usize;
+                        let val = self.memory.get_memory_at_u16( base_address + offset)?;
+
+                        #[cfg(debug_assertions)]
+                        {
+                            let r2_name = REGISTER_NAMES[r2];
+                            println!(
+                                "Move value {:#06X} from {:#06X} in memory to {}",
+                                val, base_address + offset, r2_name
+                            );
+                        }
+
+                        flag!(self, val);
+                        match SIZE_OF[r2] {
+                            1 => Ok(self.registers.set_memory_at_u8(ADDRESS_OF[r2], val as u8)?),
+                            2 => Ok(self.registers.set_memory_at_u16(ADDRESS_OF[r2], val)?),
+                            x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                        }
+                    }
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                }
+            }
             JMP_LIT => {
                 let address_to_jmp = self.fetch_u16()?;
 

@@ -106,6 +106,41 @@ mod tests {
     }
 
     #[test]
+    fn test_offset() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_MEM16,  0x3, 0x00, 0x15, 0x00,  // put 0x0300 at 0x1500 in memory
+            MOV_LIT_REG, 0x01, 0x00, AX,            // put 0x0100 in AX
+            MOV_LITOFF_REG, 0x14, 0x00, AX, BX,     // move value in memory at address [0x1400 + AX] in BX
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("ax").unwrap(), 0x0100);
+        assert_eq!(cpu.get_register("bx").unwrap(), 0x0300);
+        assert_eq!(cpu.get_register("bh").unwrap(), 0x03);
+    }
+
+    #[test]
+    fn test_offset2() {
+        let mut cpu = CPU::default();
+        let instructions = [
+            MOV_LIT_MEM16,  0x3, 0x45, 0x15, 0x00,  // put 0x0345 at 0x1500 in memory
+            MOV_LIT_REG, 0x01, 0x00, AX,            // put 0x0100 in AX
+            MOV_LITOFF_REG, 0x14, 0x00, AX, BH,     // move value in memory at address [0x1400 + AX] in BH but is only a 8bits register so data will be lost
+            END,
+        ];
+
+        cpu.set_instruction(&instructions);
+        while cpu.step() {}
+
+        assert_eq!(cpu.get_register("ax").unwrap(), 0x0100);
+        assert_eq!(cpu.get_register("bh").unwrap(), 0x45); // lost upper byte of data -> 0x03
+    }
+
+    #[test]
     fn call_subroutine() {
         let mut cpu = CPU::default();
         let instructions = [
