@@ -23,12 +23,19 @@ pub const INC_REG       : u8 = 0x29;
 pub const DEC_REG       : u8 = 0x2A;
 
 pub const JMP_LIT       : u8 = 0x30;
-pub const JEQ_LIT       : u8 = 0x31; // jump to second lit if first lit == acc
-pub const JNE_LIT       : u8 = 0x32; // jump to second lit if first lit != acc
-pub const JGT_LIT       : u8 = 0x33; // jump to second lit if first lit >  acc
-pub const JGE_LIT       : u8 = 0x34; // jump to second lit if first lit >= acc
-pub const JLT_LIT       : u8 = 0x35; // jump to second lit if first lit <  acc
-pub const JLE_LIT       : u8 = 0x36; // jump to second lit if first lit <= acc
+pub const JMP_REG       : u8 = 0x31;
+pub const JEQ_LIT       : u8 = 0x32; // jump to second lit if first lit == acc
+pub const JEQ_REG       : u8 = 0x33;
+pub const JNE_LIT       : u8 = 0x34; // jump to second lit if first lit != acc
+pub const JNE_REG       : u8 = 0x35;
+pub const JGT_LIT       : u8 = 0x36; // jump to second lit if first lit >  acc
+pub const JGT_REG       : u8 = 0x37;
+pub const JGE_LIT       : u8 = 0x38; // jump to second lit if first lit >= acc
+pub const JGE_REG       : u8 = 0x39;
+pub const JLT_LIT       : u8 = 0x3A; // jump to second lit if first lit <  acc
+pub const JLT_REG       : u8 = 0x3B;
+pub const JLE_LIT       : u8 = 0x3C; // jump to second lit if first lit <= acc
+pub const JLE_REG       : u8 = 0x3D;
 
 pub const PSH_LIT       : u8 = 0x40;
 pub const PSH_REG       : u8 = 0x41;
