@@ -809,7 +809,7 @@ impl CPU {
     fn pop(&mut self) -> Result<u16, ExecutionError> {
         let (head, carry) = self.get_register("sp")?.overflowing_add(2);
         if carry {
-            return Err(ExecutionError::BadReturn)
+            return Err(ExecutionError::BadReturn);
         }
         self.set_register("sp", head)?;
 
@@ -956,8 +956,8 @@ enum ExecutionError {
     InternalMemoryError(MemoryError),
     UnexpectedInstruction(u8),
     BadRegisterPtrLen,
-    BadReturn,
     EndOfExecution,
+    BadReturn,
 }
 
 impl From<MemoryError> for ExecutionError {
