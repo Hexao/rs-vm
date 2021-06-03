@@ -1,27 +1,26 @@
 ; data section, contain var
 .data
-    hello 0xFF48, "ello, world", 0
+    hello u16 0xFF48, "ello, world", 0
 
 .code
     start:
-    mov hello r1
+    mov hello ax
     cal print
     end
 
     ; print the string pointed
-    ; by the value in R1
+    ; by the value in ax
     print:
-    mov 0x3000 r2
-    mov *r1 acc
-    mov 1 r7
-    mov 2 r8
+    mov 0x3000 bx
+    mov *ax acc
+    mov 2 hx
     print_loop:
-    mov acc *r2
-    add r1 r8
-    mov acc r1
-    add r2 r7
-    mov acc r2
-    mov *r1 acc
-    jne 0 print_loop
+    mov acc *bx
+    add ax hx
+    mov acc ax
+    inc bx
+    mov *ax acc
+    cmp acc 0
+    jne print_loop
     ret
 

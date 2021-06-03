@@ -1,7 +1,7 @@
 .code
     start:
-    mov 1 r1
     loop:
-    add acc r1
-    jne 0b10 loop
+    inc al
+    cmp al 0b10
+    jne loop
     end

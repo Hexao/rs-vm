@@ -1,5 +1,9 @@
-start:
-    MOV 0x1234 R1
-    MOV R1     #0x4f
-    JNE 0      start
-    END
+
+.code
+    start:
+    mov 0x1234  al
+    mov al      #0x4f
+    mov #0x4f   ah
+    cmp al      ah
+    jne start
+    end
