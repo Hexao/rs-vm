@@ -300,7 +300,7 @@ impl CPU {
                 match SIZE_OF[r1] {
                     1 => Err(ExecutionError::BadRegisterPtrLen),
                     2 => {
-                        
+
                         let offset = self.registers.get_memory_at_u16(r1)? as usize;
                         let val = self.memory.get_memory_at_u16( base_address + offset)?;
 
@@ -323,83 +323,194 @@ impl CPU {
                     x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
                 }
             }
+            // unconditional jump to literal (label)
             JMP_LIT => {
-                let address_to_jmp = self.fetch_u16()?;
+                let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory)", address_to_jmp);
+                println!("Jump to {:#06X} (literal)", add);
 
-                self.set_register("ip", address_to_jmp)?;
+                self.set_register("ip", add)?;
                 Ok(())
             }
-            // Jump to provided memory address if literal equal to accumulator value
+            // unconditional jump to register value
+            JMP_REG => {
+                let reg = self.fetch_reg()?;
+                let add = register!(self, reg)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Jump to {:#06X} (value of {})", add, reg_name);
+                }
+
+                self.set_register("ip", add)?;
+                Ok(())
+            }
+            // Jump to provided memory address if Zero_f is true
             JEQ_LIT => {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if flag ZERO is set to true", add);
+                println!("Jump to {:#06X} (literal) if flag ZERO is set to true", add);
 
                 if (self.flags & CPU::F_ZERO_VAL) != 0 { // flag f_zero_val is on
                     self.set_register("ip", add)?;
                 }
                 Ok(())
             }
-            // Jump to provided memory address if literal not equal to accumulator value
+            // Jump to the value in register if Zero_f is true
+            JEQ_REG => {
+                let reg = self.fetch_reg()?;
+                let add = register!(self, reg)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Jump to {:#06X} (value of {}) if flag ZERO is set to true", add, reg_name);
+                }
+
+                if (self.flags & CPU::F_ZERO_VAL) != 0 { // flag f_zero_val is on
+                    self.set_register("ip", add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if Zero_f is false
             JNE_LIT => {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if flag ZERO is set to false", add);
+                println!("Jump to {:#06X} (literal) if flag ZERO is set to false", add);
 
                 if (self.flags & CPU::F_ZERO_VAL) == 0 { // flag f_zero_val is off
                     self.set_register("ip", add)?;
                 }
                 Ok(())
             }
-            // Jump to provided memory address if literal is greater than accumulator value
+            // Jump to the value in register if Zero_f is false
+            JNE_REG => {
+                let reg = self.fetch_reg()?;
+                let add = register!(self, reg)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Jump to {:#06X} (value of {}) if flag ZERO is set to false", add, reg_name);
+                }
+
+                if (self.flags & CPU::F_ZERO_VAL) == 0 { // flag f_zero_val is off
+                    self.set_register("ip", add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if Zero_f and Neg_f are false
             JGT_LIT => {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if flags ZERO and NEGATIF are set to false", add);
+                println!("Jump to {:#06X} (literal) if flags ZERO and NEGATIF are set to false", add);
 
                 if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
             }
-            // Jump to provided memory address if literal is greater or equal to accumulator value
+            // Jump to the value in register if Zero_f and Neg_f are false
+            JGT_REG => {
+                let reg = self.fetch_reg()?;
+                let add = register!(self, reg)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Jump to {:#06X} (value of {}) if flags ZERO and NEGATIF are set to false", add, reg_name);
+                }
+
+                if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == 0 {
+                    self.set_register("ip", add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if Neg_f is false
             JGE_LIT => {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if flag NEGATIF is set to false", add);
+                println!("Jump to {:#06X} (literal) if flag NEGATIF is set to false", add);
 
                 if (self.flags & CPU::F_NEGATIF) == 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
             }
-            // Jump to provided memory address if literal is less than accumulator value
+            // Jump to the value in register if Neg_f is false
+            JGE_REG => {
+                let reg = self.fetch_reg()?;
+                let add = register!(self, reg)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Jump to {:#06X} (value of {}) if flag NEGATIF is set to false", add, reg_name);
+                }
+
+                if (self.flags & CPU::F_NEGATIF) == 0 {
+                    self.set_register("ip", add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if Zero_f is false and Neg_f is true
             JLT_LIT => {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if flag ZERO is set to false and flag NEGATIF is set to true", add);
+                println!("Jump to {:#06X} (literal) if flag ZERO is set to false and flag NEGATIF is set to true", add);
 
                 if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == CPU::F_NEGATIF { // not equal + neg
                     self.set_register("ip", add)?;
                 }
                 Ok(())
             }
-            // Jump to provided memory address if literal is less or equal to accumulator value
+            // Jump to the value in register if Zero_f is false and Neg_f is true
+            JLT_REG => {
+                let reg = self.fetch_reg()?;
+                let add = register!(self, reg)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Jump to {:#06X} (value of {}) if flag ZERO is set to false and flag NEGATIF is set to true", add, reg_name);
+                }
+
+                if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == CPU::F_NEGATIF { // not equal + neg
+                    self.set_register("ip", add)?;
+                }
+                Ok(())
+            }
+            // Jump to provided memory address if Zero_f and Neg_f are true
             JLE_LIT => {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (memory) if flag NEGATIF is set to true", add);
+                println!("Jump to {:#06X} (literal) if flag NEGATIF and ZERO are set to true", add);
 
-                if (self.flags & CPU::F_NEGATIF) != 0 {
+                if (self.flags & (CPU::F_NEGATIF | CPU::F_ZERO_VAL)) != 0 {
+                    self.set_register("ip", add)?;
+                }
+                Ok(())
+            }
+            // Jump to the value in register address if Zero_f and Neg_f are true
+            JLE_REG => {
+                let reg = self.fetch_reg()?;
+                let add = register!(self, reg)?;
+
+                #[cfg(debug_assertions)]
+                {
+                    let reg_name = REGISTER_NAMES[reg];
+                    println!("Jump to {:#06X} (value of {}) if flag NEGATIF and ZERO are set to true", add, reg_name);
+                }
+
+                if (self.flags & (CPU::F_NEGATIF | CPU::F_ZERO_VAL)) != 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
