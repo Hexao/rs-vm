@@ -348,7 +348,7 @@ impl Param {
 
         // if val has only one char, it's a base10 literal or flag. for sure
         if val.len() < 2 {
-            return match u16::from_str_radix(&val, 10) {
+            return match val.parse() {
                 Ok(v) => Param::Lit(v),
                 Err(_) => Param::Flag(val),
             };
@@ -381,7 +381,7 @@ impl Param {
                     Param::Lit(v)
                 }
             }
-            _ => match u16::from_str_radix(val.get(v1_offset..).unwrap(), 10) {
+            _ => match val.get(v1_offset..).unwrap().parse() {
                 Ok(v) => {
                     if memory {
                         Param::Mem(v)

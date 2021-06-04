@@ -41,6 +41,7 @@ macro_rules! flag {
     };
 }
 
+#[allow(clippy::upper_case_acronyms)]
 /// CPU struct that will be the "head" of the VM.
 /// It handles everything from memory pointers to executing incomming instructions
 pub struct CPU {
