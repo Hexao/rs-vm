@@ -168,16 +168,8 @@ named!(reg<&str, &str>, alt!(tag_no_case!("ah") | tag_no_case!("al") | tag_no_ca
     tag_no_case!("ex") | tag_no_case!("fx") | tag_no_case!("gx") | tag_no_case!("hx") | tag_no_case!("acc")
 ));
 
-named!(reg1, alt!(tag_no_case!("awd") | tag_no_case!("dfg")));
-
-named!(reg2<&str, &str>, tag_no_case!("ah"));
-
 pub fn upper_or_lower_str<'a>(to_match: &'a str, input: &'a str) -> IResult<&'a str, &'a str>  {
     tag_no_case(to_match)(input)
-}
-
-pub fn register() {
-    //alt(tag_no_case!(to_match))(input)
 }
 
 fn main() {
@@ -202,7 +194,7 @@ fn test_upper_string_ok() {
 
 #[test]
 fn test_program() {
-    let input_text = "mov ah ax";
+    let input_text = "mov [$42 + !loc - ($05 * $31)] ax";
     //let mut prog = Program::default();
 
     let (rest, _) = upper_or_lower_str("mov", input_text).unwrap();
@@ -233,20 +225,4 @@ fn test_program() {
         param2: Box::new(Registeru8::new(4, "ax".to_string()))
     };*/
     //assert_eq!(instruction, expected);
-}
-
-#[test]
-fn test_mov_instruct() {
-    let input_text = "mov 42 ah";
-    let input_text2 = "MOV X Y";
-
-    let output = upper_or_lower_str("mov", input_text);
-    let output2 = upper_or_lower_str("mov", input_text2);
-    
-    dbg!(&output);
-    dbg!(&output2);
-    let expected = Ok((" x y", "mov"));
-    let expected2 = Ok((" X Y", "MOV"));
-    assert_eq!(output, expected);
-    assert_eq!(output2, expected2);
 }
