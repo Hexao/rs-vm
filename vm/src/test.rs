@@ -321,34 +321,40 @@ mod tests {
         assert_eq!(cpu.get_register("bx").unwrap(), 0x0000);
     }
 
+    macro_rules! jump_code {
+        ($ins_lit:expr, $ins_reg:expr) => {
+            [
+                MOV_LIT_REG, 0x00, 0x2F, AX, // 0x0000
+                CMP_REG_LIT, AX, 0x00, 0x30, // 0x0004
+                $ins_lit, 0x00, 0x0F,        // 0x0008
+                MOV_LIT_REG, 0x00, 0x01, BH, // 0x000B
+                CMP_REG_LIT, AX, 0x00, 0x2F, // 0x000F
+                $ins_lit, 0x00, 0x1A,        // 0x0013
+                MOV_LIT_REG, 0x00, 0x01, CH, // 0x0016
+                CMP_REG_LIT, AX, 0x00, 0x20, // 0x001A
+                $ins_lit, 0x00, 0x25,        // 0x001E
+                MOV_LIT_REG, 0x00, 0x01, DH, // 0x0021
+
+                CMP_REG_LIT, AX, 0x00, 0x30, // 0x0025
+                $ins_reg, AX,                // 0x0029
+                MOV_LIT_REG, 0x00, 0x01, BL, // 0x002B
+                MOV_LIT_REG, 0x00, 0x3D, AX, // 0x002F
+                CMP_REG_LIT, AX, 0x00, 0x3D, // 0x0033
+                $ins_reg, AX,                // 0x0037
+                MOV_LIT_REG, 0x00, 0x01, CL, // 0x0039
+                MOV_LIT_REG, 0x00, 0x4B, AX, // 0x003D
+                CMP_REG_LIT, AX, 0x00, 0x40, // 0x0041
+                $ins_reg, AX,                // 0x0045
+                MOV_LIT_REG, 0x00, 0x01, DL, // 0x0047
+                END                          // 0x004B
+            ]
+        };
+    }
+
     #[test]
     fn jump_equal() {
         let mut cpu = CPU::default();
-        let instructions = [
-            MOV_LIT_REG, 0x00, 0x2F, AX, // 0x0000
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0004
-            JEQ_LIT, 0x00, 0x0F,         // 0x0008
-            MOV_LIT_REG, 0x00, 0x01, BH, // 0x000B
-            CMP_REG_LIT, AX, 0x00, 0x2F, // 0x000F
-            JEQ_LIT, 0x00, 0x1A,         // 0x0013
-            MOV_LIT_REG, 0x00, 0x01, CH, // 0x0016
-            CMP_REG_LIT, AX, 0x00, 0x20, // 0x001A
-            JEQ_LIT, 0x00, 0x25,         // 0x001E
-            MOV_LIT_REG, 0x00, 0x01, DH, // 0x0021
-
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0025
-            JEQ_REG, AX,                 // 0x0029
-            MOV_LIT_REG, 0x00, 0x01, BL, // 0x002B
-            MOV_LIT_REG, 0x00, 0x3D, AX, // 0x002F
-            CMP_REG_LIT, AX, 0x00, 0x3D, // 0x0033
-            JEQ_REG, AX,                 // 0x0037
-            MOV_LIT_REG, 0x00, 0x01, CL, // 0x0039
-            MOV_LIT_REG, 0x00, 0x4B, AX, // 0x003D
-            CMP_REG_LIT, AX, 0x00, 0x40, // 0x0041
-            JEQ_REG, AX,                 // 0x0045
-            MOV_LIT_REG, 0x00, 0x01, DL, // 0x0047
-            END                          // 0x004B
-        ];
+        let instructions = jump_code!(JEQ_LIT, JEQ_REG);
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
@@ -361,31 +367,7 @@ mod tests {
     #[test]
     fn jump_not_equal() {
         let mut cpu = CPU::default();
-        let instructions = [
-            MOV_LIT_REG, 0x00, 0x2F, AX, // 0x0000
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0004
-            JNE_LIT, 0x00, 0x0F,         // 0x0008
-            MOV_LIT_REG, 0x00, 0x01, BH, // 0x000B
-            CMP_REG_LIT, AX, 0x00, 0x2F, // 0x000F
-            JNE_LIT, 0x00, 0x1A,         // 0x0013
-            MOV_LIT_REG, 0x00, 0x01, CH, // 0x0016
-            CMP_REG_LIT, AX, 0x00, 0x20, // 0x001A
-            JNE_LIT, 0x00, 0x25,         // 0x001E
-            MOV_LIT_REG, 0x00, 0x01, DH, // 0x0021
-
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0025
-            JNE_REG, AX,                 // 0x0029
-            MOV_LIT_REG, 0x00, 0x01, BL, // 0x002B
-            MOV_LIT_REG, 0x00, 0x3D, AX, // 0x002F
-            CMP_REG_LIT, AX, 0x00, 0x3D, // 0x0033
-            JNE_REG, AX,                 // 0x0037
-            MOV_LIT_REG, 0x00, 0x01, CL, // 0x0039
-            MOV_LIT_REG, 0x00, 0x4B, AX, // 0x003D
-            CMP_REG_LIT, AX, 0x00, 0x40, // 0x0041
-            JNE_REG, AX,                 // 0x0045
-            MOV_LIT_REG, 0x00, 0x01, DL, // 0x0047
-            END                          // 0x004B
-        ];
+        let instructions = jump_code!(JNE_LIT, JNE_REG);
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
@@ -398,31 +380,7 @@ mod tests {
     #[test]
     fn jump_greater_than() {
         let mut cpu = CPU::default();
-        let instructions = [
-            MOV_LIT_REG, 0x00, 0x2F, AX, // 0x0000
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0004
-            JGT_LIT, 0x00, 0x0F,         // 0x0008
-            MOV_LIT_REG, 0x00, 0x01, BH, // 0x000B
-            CMP_REG_LIT, AX, 0x00, 0x2F, // 0x000F
-            JGT_LIT, 0x00, 0x1A,         // 0x0013
-            MOV_LIT_REG, 0x00, 0x01, CH, // 0x0016
-            CMP_REG_LIT, AX, 0x00, 0x20, // 0x001A
-            JGT_LIT, 0x00, 0x25,         // 0x001E
-            MOV_LIT_REG, 0x00, 0x01, DH, // 0x0021
-
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0025
-            JGT_REG, AX,                 // 0x0029
-            MOV_LIT_REG, 0x00, 0x01, BL, // 0x002B
-            MOV_LIT_REG, 0x00, 0x3D, AX, // 0x002F
-            CMP_REG_LIT, AX, 0x00, 0x3D, // 0x0033
-            JGT_REG, AX,                 // 0x0037
-            MOV_LIT_REG, 0x00, 0x01, CL, // 0x0039
-            MOV_LIT_REG, 0x00, 0x4B, AX, // 0x003D
-            CMP_REG_LIT, AX, 0x00, 0x40, // 0x0041
-            JGT_REG, AX,                 // 0x0045
-            MOV_LIT_REG, 0x00, 0x01, DL, // 0x0047
-            END                          // 0x004B
-        ];
+        let instructions = jump_code!(JGT_LIT, JGT_REG);
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
@@ -435,31 +393,7 @@ mod tests {
     #[test]
     fn jump_greater_or_equal() {
         let mut cpu = CPU::default();
-        let instructions = [
-            MOV_LIT_REG, 0x00, 0x2F, AX, // 0x0000
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0004
-            JGE_LIT, 0x00, 0x0F,         // 0x0008
-            MOV_LIT_REG, 0x00, 0x01, BH, // 0x000B
-            CMP_REG_LIT, AX, 0x00, 0x2F, // 0x000F
-            JGE_LIT, 0x00, 0x1A,         // 0x0013
-            MOV_LIT_REG, 0x00, 0x01, CH, // 0x0016
-            CMP_REG_LIT, AX, 0x00, 0x20, // 0x001A
-            JGE_LIT, 0x00, 0x25,         // 0x001E
-            MOV_LIT_REG, 0x00, 0x01, DH, // 0x0021
-
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0025
-            JGE_REG, AX,                 // 0x0029
-            MOV_LIT_REG, 0x00, 0x01, BL, // 0x002B
-            MOV_LIT_REG, 0x00, 0x3D, AX, // 0x002F
-            CMP_REG_LIT, AX, 0x00, 0x3D, // 0x0033
-            JGE_REG, AX,                 // 0x0037
-            MOV_LIT_REG, 0x00, 0x01, CL, // 0x0039
-            MOV_LIT_REG, 0x00, 0x4B, AX, // 0x003D
-            CMP_REG_LIT, AX, 0x00, 0x40, // 0x0041
-            JGE_REG, AX,                 // 0x0045
-            MOV_LIT_REG, 0x00, 0x01, DL, // 0x0047
-            END                          // 0x004B
-        ];
+        let instructions = jump_code!(JGE_LIT, JGE_REG);
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
@@ -472,31 +406,7 @@ mod tests {
     #[test]
     fn jump_lower_than() {
         let mut cpu = CPU::default();
-        let instructions = [
-            MOV_LIT_REG, 0x00, 0x2F, AX, // 0x0000
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0004
-            JLT_LIT, 0x00, 0x0F,         // 0x0008
-            MOV_LIT_REG, 0x00, 0x01, BH, // 0x000B
-            CMP_REG_LIT, AX, 0x00, 0x2F, // 0x000F
-            JLT_LIT, 0x00, 0x1A,         // 0x0013
-            MOV_LIT_REG, 0x00, 0x01, CH, // 0x0016
-            CMP_REG_LIT, AX, 0x00, 0x20, // 0x001A
-            JLT_LIT, 0x00, 0x25,         // 0x001E
-            MOV_LIT_REG, 0x00, 0x01, DH, // 0x0021
-
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0025
-            JLT_REG, AX,                 // 0x0029
-            MOV_LIT_REG, 0x00, 0x01, BL, // 0x002B
-            MOV_LIT_REG, 0x00, 0x3D, AX, // 0x002F
-            CMP_REG_LIT, AX, 0x00, 0x3D, // 0x0033
-            JLT_REG, AX,                 // 0x0037
-            MOV_LIT_REG, 0x00, 0x01, CL, // 0x0039
-            MOV_LIT_REG, 0x00, 0x4B, AX, // 0x003D
-            CMP_REG_LIT, AX, 0x00, 0x40, // 0x0041
-            JLT_REG, AX,                 // 0x0045
-            MOV_LIT_REG, 0x00, 0x01, DL, // 0x0047
-            END                          // 0x004B
-        ];
+        let instructions = jump_code!(JLT_LIT, JLT_REG);
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
@@ -509,31 +419,7 @@ mod tests {
     #[test]
     fn jump_lower_or_equal() {
         let mut cpu = CPU::default();
-        let instructions = [
-            MOV_LIT_REG, 0x00, 0x2F, AX, // 0x0000
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0004
-            JLE_LIT, 0x00, 0x0F,         // 0x0008
-            MOV_LIT_REG, 0x00, 0x01, BH, // 0x000B
-            CMP_REG_LIT, AX, 0x00, 0x2F, // 0x000F
-            JLE_LIT, 0x00, 0x1A,         // 0x0013
-            MOV_LIT_REG, 0x00, 0x01, CH, // 0x0016
-            CMP_REG_LIT, AX, 0x00, 0x20, // 0x001A
-            JLE_LIT, 0x00, 0x25,         // 0x001E
-            MOV_LIT_REG, 0x00, 0x01, DH, // 0x0021
-
-            CMP_REG_LIT, AX, 0x00, 0x30, // 0x0025
-            JLE_REG, AX,                 // 0x0029
-            MOV_LIT_REG, 0x00, 0x01, BL, // 0x002B
-            MOV_LIT_REG, 0x00, 0x3D, AX, // 0x002F
-            CMP_REG_LIT, AX, 0x00, 0x3D, // 0x0033
-            JLE_REG, AX,                 // 0x0037
-            MOV_LIT_REG, 0x00, 0x01, CL, // 0x0039
-            MOV_LIT_REG, 0x00, 0x4B, AX, // 0x003D
-            CMP_REG_LIT, AX, 0x00, 0x40, // 0x0041
-            JLE_REG, AX,                 // 0x0045
-            MOV_LIT_REG, 0x00, 0x01, DL, // 0x0047
-            END                          // 0x004B
-        ];
+        let instructions = jump_code!(JLE_LIT, JLE_REG);
 
         cpu.set_instruction(&instructions);
         while cpu.step() {}
