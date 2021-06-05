@@ -99,7 +99,7 @@ impl DataParser {
                     if expect.match_with(DataParser::DECIMAL) {
                         expect = Expect::Separator;
                         let dec = dec.as_str();
-                        let val = u16::from_str_radix(dec, 10).unwrap();
+                        let val = dec.parse::<u16>().unwrap();
 
                         match var.type_len() {
                             1 => var.add_data(&mut vec![(val & 0xFF) as u8]),
