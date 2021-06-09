@@ -2,19 +2,14 @@
 extern crate nom;
 
 use nom::{
-    character::complete::{alpha1, char, line_ending, not_line_ending},
-    combinator::{cut, map, not, recognize},
+    character::complete::{space1, space0, digit1, hex_digit1, oct_digit1},
     bytes::complete::tag_no_case,
-    error::{context, ParseError, VerboseError},
-    multi::{many0, many1},
-    branch::Alt,
     IResult,
 };
 
 use arch::registers;
 
 use core::{fmt::Debug};
-use std::any::Any;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ParameterType {
@@ -24,12 +19,12 @@ pub enum ParameterType {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Registeru8 {
+pub struct RegisterU8 {
     reg_type: u8,
     reg_name: String,
 }
 
-impl Registeru8 {
+impl RegisterU8 {
     pub fn new(reg_type: u8, reg_name: String) -> Self {
         Self {
             reg_type,
@@ -37,7 +32,6 @@ impl Registeru8 {
         }
     }
 }
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Registeru16 {
@@ -59,95 +53,24 @@ pub struct Literal {
     value: u16
 }
 
-
-pub trait Parameter {
-    fn get_type(&self) -> ParameterType;
-    fn as_any(&self) -> &dyn Any;
+#[derive(Debug)]
+pub enum Parameter {
+    RegU16{name: String, reg_id: u8},
+    RegU8{name: String, reg_id: u8},
+    Lit(u16),
 }
-
-impl Debug for dyn Parameter {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.get_type() == ParameterType::RegisterU8 {
-            return write!(f, "Parameter{{{:?}}}", self.as_any().downcast_ref::<Registeru8>().expect("downcast error"));
-        } else if self.get_type() == ParameterType::RegisterU16 {
-            return write!(f, "Parameter{{{:?}}}", self.as_any().downcast_ref::<Registeru16>().expect("downcast error"));
-        } else if self.get_type() == ParameterType::Literal { 
-            return write!(f, "Parameter{{{:?}}}", self.as_any().downcast_ref::<Literal>().expect("downcast error"));
-        }
-        
-        write!(f, "Parameter{{{}}}", 0)
-    }
-}
-
-impl PartialEq for dyn Parameter {
-    fn eq(&self, other: &Self) -> bool {
-        if self.get_type() != other.get_type() {
-            return false;
-        }
-
-        if self.get_type() == ParameterType::RegisterU8 {
-            let a: &Registeru8 = self.as_any().downcast_ref::<Registeru8>().expect("downcast error");
-            let b: &Registeru8 = self.as_any().downcast_ref::<Registeru8>().expect("downcast error");
-            if a != b {
-                return false;
-            }
-        } else if self.get_type() == ParameterType::RegisterU16 {
-            let a: &Registeru16 = self.as_any().downcast_ref::<Registeru16>().expect("downcast error");
-            let b: &Registeru16 = self.as_any().downcast_ref::<Registeru16>().expect("downcast error");
-            if a != b {
-                return false;
-            }
-        } else if self.get_type() == ParameterType::Literal {
-            let a: &Literal = self.as_any().downcast_ref::<Literal>().expect("downcast error");
-            let b: &Literal = self.as_any().downcast_ref::<Literal>().expect("downcast error");
-            if a != b {
-                return false;
-            }
-        }
-        true
-    }
-}
-
-impl Parameter for Registeru8 {
-    fn get_type(&self) -> ParameterType {
-        ParameterType::RegisterU8
-    }
-    
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-impl Parameter for Registeru16 {
-    fn get_type(&self) -> ParameterType {
-        ParameterType::RegisterU16
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-impl Parameter for Literal {
-    fn get_type(&self) -> ParameterType {
-        ParameterType::Literal
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
 
 #[derive(Debug)]
 struct Instruction {
-    ins_type: u8,
-    param1: Box<dyn Parameter>,
-    param2: Box<dyn Parameter>,
+    ins_name: String,
+    param1: Parameter,
+    param2: Parameter,
 }
 
 impl Instruction {
-    pub fn new(ins_type:u8, param1: Box<dyn Parameter>, param2: Box<dyn Parameter>) -> Self {
+    pub fn new(ins_name:&str, param1: Parameter, param2: Parameter) -> Self {
         Self {
-            ins_type,
+            ins_name: ins_name.to_owned(),
             param1,
             param2,
         }
@@ -159,13 +82,50 @@ struct Program {
     instructions: Vec<Instruction>
 }
 
-
-
 named!(reg<&str, &str>, alt!(tag_no_case!("ah") | tag_no_case!("al") | tag_no_case!("ax") |
     tag_no_case!("bh") | tag_no_case!("bl") | tag_no_case!("bx") |
     tag_no_case!("ch") | tag_no_case!("cl") | tag_no_case!("cx") |
     tag_no_case!("dh") | tag_no_case!("dl") | tag_no_case!("dx") |
     tag_no_case!("ex") | tag_no_case!("fx") | tag_no_case!("gx") | tag_no_case!("hx") | tag_no_case!("acc")
+));
+
+named!(ins<&str, &str>, alt!(
+    tag_no_case!("mov") | tag_no_case!("add") |
+    tag_no_case!("sub") | tag_no_case!("mul")
+));
+
+named!(reg_8<&str, &str>, alt!(
+    tag_no_case!("ah") | tag_no_case!("al") |
+    tag_no_case!("bh") | tag_no_case!("bl") |
+    tag_no_case!("ch") | tag_no_case!("cl") |
+    tag_no_case!("dh") | tag_no_case!("dl")
+));
+
+named!(reg_16<&str, &str>, alt!(
+    tag_no_case!("ax") | tag_no_case!("bx") |
+    tag_no_case!("cx") | tag_no_case!("dx") |
+    tag_no_case!("ex") | tag_no_case!("fx") |
+    tag_no_case!("gx") | tag_no_case!("hx") |
+    tag_no_case!("acc")
+));
+
+named!(lit<&str, u16>, alt!(
+    do_parse!(_prefix: tag_no_case!("0o") >> value: oct_digit1 >> (u16::from_str_radix(value, 8).unwrap())) |
+    do_parse!(_prefix: tag_no_case!("0x") >> value: hex_digit1 >> (u16::from_str_radix(value, 16).unwrap())) |
+    do_parse!(value: digit1 >> (value.parse::<u16>().unwrap()))
+));
+
+named!(get_reg<&str, Parameter>, alt!(
+    do_parse!(name: reg_8 >> (Parameter::RegU8{name: name.to_owned(), reg_id: registers::REGISTER_NAMES.iter().position(|&n| n == name).unwrap() as u8})) |
+    do_parse!(name: reg_16 >> (Parameter::RegU16{name: name.to_owned(), reg_id: registers::REGISTER_NAMES.iter().position(|&n| n == name).unwrap() as u8})) |
+    do_parse!(lit: lit >> (Parameter::Lit(lit)))
+));
+
+named!(get_ins<&str, Instruction>, do_parse!(
+    name: terminated!(ins, space1) >>
+    r1: terminated!(get_reg, space1) >>
+    r2: terminated!(get_reg, space0) >>
+    (Instruction::new(name, r1, r2))
 ));
 
 pub fn upper_or_lower_str<'a>(to_match: &'a str, input: &'a str) -> IResult<&'a str, &'a str>  {
@@ -183,7 +143,7 @@ fn test_upper_string_ok() {
 
     let output = upper_or_lower_str("mov", input_text);
     let output2 = upper_or_lower_str("mov", input_text2);
-    
+
     dbg!(&output);
     dbg!(&output2);
     let expected = Ok((" x y", "mov"));
@@ -193,36 +153,11 @@ fn test_upper_string_ok() {
 }
 
 #[test]
-fn test_program() {
-    let input_text = "mov [$42 + !loc - ($05 * $31)] ax";
-    //let mut prog = Program::default();
+fn test_mov_reg_reg() {
+    let input = "mov 0x4f bh";
 
-    let (rest, _) = upper_or_lower_str("mov", input_text).unwrap();
-    let instruct_type = 0x10;
-    let mut rest = rest.split_ascii_whitespace();
-
-    let (_, matched) = reg(rest.next().unwrap()).unwrap();
-    let reg_id = registers::REGISTER_NAMES.iter().position(|&name| name == matched).unwrap();
-    let param1: Box<dyn Parameter> = if registers::SIZE_OF[reg_id] == 1 {
-        Box::new(Registeru8::new(reg_id as u8, matched.to_string()))
-    } else {
-        Box::new(Registeru16::new(reg_id as u8, matched.to_string()))
-    };
-
-    let (_, matched) = reg(rest.next().unwrap()).unwrap();
-    let reg_id = registers::REGISTER_NAMES.iter().position(|&name| name == matched).unwrap();
-    let param2: Box<dyn Parameter> = if registers::SIZE_OF[reg_id] == 1 {
-        Box::new(Registeru8::new(reg_id as u8, matched.to_string()))
-    } else {
-        Box::new(Registeru16::new(reg_id as u8, matched.to_string()))
-    };
-
-    let instruction = Instruction::new(instruct_type, param1, param2);
-    dbg!(&instruction);
-    /*let expected = Instruction { 
-        ins_type: 0x10,
-        param1: Box::new(Registeru8::new(2, "ah".to_string())),
-        param2: Box::new(Registeru8::new(4, "ax".to_string()))
-    };*/
-    //assert_eq!(instruction, expected);
+    let (r, ins) = get_ins(input).unwrap();
+    assert_eq!(r, "");
+    dbg!(r);
+    dbg!(ins);
 }
