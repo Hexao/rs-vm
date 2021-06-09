@@ -82,13 +82,6 @@ struct Program {
     instructions: Vec<Instruction>
 }
 
-named!(reg<&str, &str>, alt!(tag_no_case!("ah") | tag_no_case!("al") | tag_no_case!("ax") |
-    tag_no_case!("bh") | tag_no_case!("bl") | tag_no_case!("bx") |
-    tag_no_case!("ch") | tag_no_case!("cl") | tag_no_case!("cx") |
-    tag_no_case!("dh") | tag_no_case!("dl") | tag_no_case!("dx") |
-    tag_no_case!("ex") | tag_no_case!("fx") | tag_no_case!("gx") | tag_no_case!("hx") | tag_no_case!("acc")
-));
-
 named!(ins<&str, &str>, alt!(
     tag_no_case!("mov") | tag_no_case!("add") |
     tag_no_case!("sub") | tag_no_case!("mul")
