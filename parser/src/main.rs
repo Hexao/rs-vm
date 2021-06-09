@@ -8,69 +8,33 @@ use nom::{
 };
 
 use arch::registers;
-
 use core::{fmt::Debug};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ParameterType {
-    RegisterU8,
     RegisterU16,
-    Literal
+    RegisterU8,
+    Literal,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct RegisterU8 {
-    reg_type: u8,
-    reg_name: String,
-}
-
-impl RegisterU8 {
-    pub fn new(reg_type: u8, reg_name: String) -> Self {
-        Self {
-            reg_type,
-            reg_name
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct Registeru16 {
-    reg_type: u8,
-    reg_name: String,
-}
-
-impl Registeru16 {
-    pub fn new(reg_type: u8, reg_name: String) -> Self {
-        Self {
-            reg_type,
-            reg_name
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct Literal {
-    value: u16
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Parameter {
-    RegU16{name: String, reg_id: u8},
-    RegU8{name: String, reg_id: u8},
+    RegU16(u8),
+    RegU8(u8),
     Lit(u16),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct Instruction {
-    ins_name: String,
+    name: String,
     param1: Parameter,
     param2: Parameter,
 }
 
 impl Instruction {
-    pub fn new(ins_name:&str, param1: Parameter, param2: Parameter) -> Self {
+    pub fn new(name: &str, param1: Parameter, param2: Parameter) -> Self {
         Self {
-            ins_name: ins_name.to_owned(),
+            name: name.to_owned(),
             param1,
             param2,
         }
@@ -103,21 +67,22 @@ named!(reg_16<&str, &str>, alt!(
 ));
 
 named!(lit<&str, u16>, alt!(
+    do_parse!(_prefix: tag_no_case!("0x") >> value: hex_digit1 >> (u16::from_str_radix(value, 16).unwrap())) | // unwraps are safe due to parser
+    do_parse!(_prefix: tag_no_case!("0b") >> value: is_a!("01") >> (u16::from_str_radix(value, 2).unwrap())) |
     do_parse!(_prefix: tag_no_case!("0o") >> value: oct_digit1 >> (u16::from_str_radix(value, 8).unwrap())) |
-    do_parse!(_prefix: tag_no_case!("0x") >> value: hex_digit1 >> (u16::from_str_radix(value, 16).unwrap())) |
     do_parse!(value: digit1 >> (value.parse::<u16>().unwrap()))
 ));
 
-named!(get_reg<&str, Parameter>, alt!(
-    do_parse!(name: reg_8 >> (Parameter::RegU8{name: name.to_owned(), reg_id: registers::REGISTER_NAMES.iter().position(|&n| n == name).unwrap() as u8})) |
-    do_parse!(name: reg_16 >> (Parameter::RegU16{name: name.to_owned(), reg_id: registers::REGISTER_NAMES.iter().position(|&n| n == name).unwrap() as u8})) |
+named!(get_param<&str, Parameter>, alt!(
+    do_parse!(name: reg_16 >> (Parameter::RegU16(registers::REGISTER_NAMES.iter().position(|&n| n == name).unwrap() as u8))) |
+    do_parse!(name: reg_8 >> (Parameter::RegU8(registers::REGISTER_NAMES.iter().position(|&n| n == name).unwrap() as u8))) |
     do_parse!(lit: lit >> (Parameter::Lit(lit)))
 ));
 
 named!(get_ins<&str, Instruction>, do_parse!(
     name: terminated!(ins, space1) >>
-    r1: terminated!(get_reg, space1) >>
-    r2: terminated!(get_reg, space0) >>
+    r1: terminated!(get_param, space1) >>
+    r2: terminated!(get_param, space0) >>
     (Instruction::new(name, r1, r2))
 ));
 
@@ -146,11 +111,24 @@ fn test_upper_string_ok() {
 }
 
 #[test]
-fn test_mov_reg_reg() {
+fn test_mov_instruction() {
     let input = "mov 0x4f bh";
 
-    let (r, ins) = get_ins(input).unwrap();
-    assert_eq!(r, "");
-    dbg!(r);
-    dbg!(ins);
+    let (_, ins) = get_ins(input).unwrap();
+    dbg!(&ins);
+    assert_eq!(ins, Instruction{
+        name: "mov".to_owned(),
+        param1: Parameter::Lit(79),
+        param2: Parameter::RegU8(5),
+    });
+
+    let input = "add 0b1010011010 0o1232";
+
+    let (_, ins) = get_ins(input).unwrap();
+    dbg!(&ins);
+    assert_eq!(ins, Instruction{
+        name: "add".to_owned(),
+        param1: Parameter::Lit(666),
+        param2: Parameter::Lit(666),
+    });
 }
