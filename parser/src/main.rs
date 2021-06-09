@@ -2,9 +2,10 @@
 extern crate nom;
 
 use nom::{
-    character::complete::{space1, space0, digit1, hex_digit1, oct_digit1},
-    bytes::complete::tag_no_case,
-    IResult,
+    IResult, bytes::complete::{tag, tag_no_case, take_till, take}, 
+    character::{
+        complete::{space1, space0, digit1, hex_digit1, oct_digit1, alpha1},
+    }
 };
 
 use arch::registers;
@@ -18,10 +19,20 @@ pub enum ParameterType {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum Operator {
+    Plus,
+    Minus,
+    Multiply
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum Parameter {
     RegU16(u8),
     RegU8(u8),
     Lit(u16),
+    Expr(Vec<Parameter>),
+    Var(String),
+    Operator(Operator)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -48,7 +59,11 @@ struct Program {
 
 named!(ins<&str, &str>, alt!(
     tag_no_case!("mov") | tag_no_case!("add") |
-    tag_no_case!("sub") | tag_no_case!("mul")
+    tag_no_case!("sub") | tag_no_case!("mul") |
+    tag_no_case!("lsf") | tag_no_case!("rsf") |
+    tag_no_case!("and") | tag_no_case!("or") |
+    tag_no_case!("xor") | tag_no_case!("cmp") |
+    tag_no_case!("jmp") | tag_no_case!("jne")
 ));
 
 named!(reg_8<&str, Parameter>, do_parse!(reg_8: alt!(
@@ -88,8 +103,66 @@ named!(get_ins<&str, Instruction>, do_parse!(
     (Instruction::new(name, r1, r2))
 ));
 
+named!(var<&str, Parameter>, do_parse!(_prefix: tag!(":") >> value: alpha1 >> (Parameter::Var(value.to_string()))));
+
+named!(get_elem<&str, Parameter>, alt!(lit | var));
+
+named!(end_bracket<&str, &str>, peek!(tag!("]")));
+
+
+named!(operator<&str,Parameter>, alt!(
+    do_parse!(_prefix: tag!("+") >> (Parameter::Operator(Operator::Plus))) |
+    do_parse!(_prefix: tag!("-") >> (Parameter::Operator(Operator::Minus))) |
+    do_parse!(_prefix: tag!("*") >> (Parameter::Operator(Operator::Multiply)))
+));
+
 pub fn upper_or_lower_str<'a>(to_match: &'a str, input: &'a str) -> IResult<&'a str, &'a str>  {
     tag_no_case(to_match)(input)
+}
+
+pub enum State {
+    ExpectElement,
+    ExpectOperator
+}
+
+pub fn get_expression<'a>(input: &'a str) -> IResult<&'a str, Vec<Parameter>> {
+    let (mut rest, _) = tag("[")(input)?;
+
+    let mut expr = vec![];
+    let mut state = State::ExpectElement;
+    let mut scope = 1;
+
+    loop {
+        dbg!(&expr);
+        match state {
+            State::ExpectElement => {
+                let (new_rest, param) = get_elem(rest)?;
+                expr.push(param);
+                state = State::ExpectOperator;
+                let (new_rest, _) = take_till(|c: char| !c.is_whitespace() )(new_rest)?;
+                rest = new_rest;
+            },
+            State::ExpectOperator => {
+                match end_bracket(rest) {
+                    Err(_) => {},
+                    Ok(_) => {
+                        if scope - 1 == 0 {
+                            let (new_rest, _) = take(1 as usize)(rest)?;
+                            rest = new_rest;
+                            break;
+                        }
+                    },
+                }
+                let (new_rest, param) = operator(rest)?;
+                expr.push(param);
+                state = State::ExpectElement;
+                let (new_rest, _) = take_till(|c: char| !c.is_whitespace() )(new_rest)?;
+                rest = new_rest;
+
+            }
+        }
+    }
+    Ok((rest, expr))
 }
 
 fn main() {
@@ -110,6 +183,14 @@ fn test_upper_string_ok() {
     let expected2 = Ok((" X Y", "MOV"));
     assert_eq!(output, expected);
     assert_eq!(output2, expected2);
+}
+
+#[test]
+fn test_expr() {
+    
+    let input = "[0x42 + :var - 0o5 * 0b0010]";
+
+    dbg!(get_expression(input));
 }
 
 #[test]
