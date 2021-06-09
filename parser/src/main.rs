@@ -51,33 +51,35 @@ named!(ins<&str, &str>, alt!(
     tag_no_case!("sub") | tag_no_case!("mul")
 ));
 
-named!(reg_8<&str, &str>, alt!(
+named!(reg_8<&str, Parameter>, do_parse!(reg_8: alt!(
     tag_no_case!("ah") | tag_no_case!("al") |
     tag_no_case!("bh") | tag_no_case!("bl") |
     tag_no_case!("ch") | tag_no_case!("cl") |
     tag_no_case!("dh") | tag_no_case!("dl")
-));
+) >> (
+    Parameter::RegU8(registers::REGISTER_NAMES.iter().position(|&n| n == reg_8).unwrap() as u8)
+)));
 
-named!(reg_16<&str, &str>, alt!(
+named!(reg_16<&str, Parameter>, do_parse!(reg_16: alt!(
     tag_no_case!("ax") | tag_no_case!("bx") |
     tag_no_case!("cx") | tag_no_case!("dx") |
     tag_no_case!("ex") | tag_no_case!("fx") |
     tag_no_case!("gx") | tag_no_case!("hx") |
     tag_no_case!("acc")
-));
+) >> (
+    Parameter::RegU16(registers::REGISTER_NAMES.iter().position(|&n| n == reg_16).unwrap() as u8)
+)));
 
-named!(lit<&str, u16>, alt!(
+named!(lit<&str, Parameter>, do_parse!(lit: alt!(
     do_parse!(_prefix: tag_no_case!("0x") >> value: hex_digit1 >> (u16::from_str_radix(value, 16).unwrap())) | // unwraps are safe due to parser
     do_parse!(_prefix: tag_no_case!("0b") >> value: is_a!("01") >> (u16::from_str_radix(value, 2).unwrap())) |
     do_parse!(_prefix: tag_no_case!("0o") >> value: oct_digit1 >> (u16::from_str_radix(value, 8).unwrap())) |
     do_parse!(value: digit1 >> (value.parse::<u16>().unwrap()))
-));
+) >> (
+    Parameter::Lit(lit)
+)));
 
-named!(get_param<&str, Parameter>, alt!(
-    do_parse!(name: reg_16 >> (Parameter::RegU16(registers::REGISTER_NAMES.iter().position(|&n| n == name).unwrap() as u8))) |
-    do_parse!(name: reg_8 >> (Parameter::RegU8(registers::REGISTER_NAMES.iter().position(|&n| n == name).unwrap() as u8))) |
-    do_parse!(lit: lit >> (Parameter::Lit(lit)))
-));
+named!(get_param<&str, Parameter>, alt!(reg_8 | reg_16 | lit));
 
 named!(get_ins<&str, Instruction>, do_parse!(
     name: terminated!(ins, space1) >>
