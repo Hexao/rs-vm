@@ -48,8 +48,10 @@ impl MemoryIO for Memory {
     /// Get the memory cell from the `data` given a `location`
     fn get_memory_at_u8(&self, location: usize) -> Result<u8, MemoryError> {
         #[cfg(debug_assertions)]
-        if location >= self.data.len() {
-            return Err(MemoryError::OutOfBounds(location));
+        {
+            if location >= self.data.len() {
+                return Err(MemoryError::OutOfBounds(location));
+            }
         }
 
         Ok(self.data[location])
@@ -66,8 +68,10 @@ impl MemoryIO for Memory {
     /// Set the memory cell from the `data` given a `location`
     fn set_memory_at_u8(&mut self, location: usize, value: u8) -> Result<(), MemoryError> {
         #[cfg(debug_assertions)]
-        if location >= self.data.len() {
-            return Err(MemoryError::OutOfBounds(location));
+        {
+            if location >= self.data.len() {
+                return Err(MemoryError::OutOfBounds(location));
+            }
         }
 
         self.data[location] = value;
