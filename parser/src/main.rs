@@ -1,11 +1,14 @@
 #[macro_use]
 extern crate nom;
 
-use nom::{IResult, bytes::complete::{tag, tag_no_case, take_till, take}, character::{complete::{alpha1, alphanumeric1, anychar, digit1, hex_digit1, oct_digit1, space0, space1}}, error::{Error, ErrorKind, make_error}};
+use nom::{
+    bytes::complete::{tag, tag_no_case, take, take_till},
+    character::complete::{alpha1, anychar, digit1, hex_digit1, oct_digit1, space0, space1},
+    IResult,
+};
 
 use arch::registers;
-use core::{fmt::Debug};
-use std::borrow::BorrowMut;
+use core::fmt::Debug;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ParameterType {
@@ -18,7 +21,7 @@ pub enum ParameterType {
 pub enum Operator {
     Plus,
     Minus,
-    Multiply
+    Multiply,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -28,7 +31,7 @@ pub enum Parameter {
     Lit(u16),
     Expr(Vec<Parameter>),
     Var(String),
-    Operator(Operator)
+    Operator(Operator),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -50,16 +53,16 @@ impl Instruction {
 
 #[derive(Default, Debug)]
 struct Program {
-    instructions: Vec<Instruction>
+    instructions: Vec<Instruction>,
 }
 
 named!(ins<&str, &str>, alt!(
     tag_no_case!("mov") | tag_no_case!("add") |
     tag_no_case!("sub") | tag_no_case!("mul") |
     tag_no_case!("lsf") | tag_no_case!("rsf") |
-    tag_no_case!("and") | tag_no_case!("or") |
     tag_no_case!("xor") | tag_no_case!("cmp") |
-    tag_no_case!("jmp") | tag_no_case!("jne")
+    tag_no_case!("jmp") | tag_no_case!("jne") |
+    tag_no_case!("and") | tag_no_case!("or")
 ));
 
 named!(reg_8<&str, Parameter>, do_parse!(reg_8: alt!(
@@ -107,38 +110,36 @@ named!(end_bracket<&str, &str>, peek!(tag!("]")));
 
 named!(next_char<&str, char>, peek!(anychar));
 
-
 named!(operator<&str,Parameter>, alt!(
     do_parse!(_prefix: tag!("+") >> (Parameter::Operator(Operator::Plus))) |
     do_parse!(_prefix: tag!("-") >> (Parameter::Operator(Operator::Minus))) |
     do_parse!(_prefix: tag!("*") >> (Parameter::Operator(Operator::Multiply)))
 ));
 
-pub fn upper_or_lower_str<'a>(to_match: &'a str, input: &'a str) -> IResult<&'a str, &'a str>  {
+pub fn upper_or_lower_str<'a>(to_match: &'a str, input: &'a str) -> IResult<&'a str, &'a str> {
     tag_no_case(to_match)(input)
 }
 
 pub enum State {
     ExpectElement,
-    ExpectOperator
+    ExpectOperator,
 }
 
 pub enum BracketState {
     OpenBracket,
     OperatorOrClosingBracket,
     ElementOrOpeningBracket,
-    ClosingBracket
+    ClosingBracket,
 }
 
-
-
-pub fn get_bracketed_expression<'a>(input: &'a str) -> IResult<&'a str, Parameter> {
+pub fn get_bracketed_expression(input: &str) -> IResult<&str, Parameter> {
     let (mut rest, _) = tag("(")(input)?;
-    let mut expr: Parameter = Parameter::Expr(vec![]);
+    let mut expr = Parameter::Expr(vec![]);
     let mut state = BracketState::ElementOrOpeningBracket;
 
-    let mut stack= vec![];
-    stack.push(Parameter::Expr(vec![]));
+    let mut stack = vec![
+        Parameter::Expr(vec![]),
+    ];
 
     loop {
         let (_, next_character) = next_char(&rest[..1])?;
@@ -147,7 +148,7 @@ pub fn get_bracketed_expression<'a>(input: &'a str) -> IResult<&'a str, Paramete
                 let (new_rest, _) = tag("(")(rest)?;
                 //expr.push(Parameter::Expr(vec![]));
                 stack.push(Parameter::Expr(vec![]));
-                let (new_rest, _) = take_till(|c: char| !c.is_whitespace() )(new_rest)?;
+                let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
                 rest = new_rest;
                 state = BracketState::ElementOrOpeningBracket;
             }
@@ -160,7 +161,7 @@ pub fn get_bracketed_expression<'a>(input: &'a str) -> IResult<&'a str, Paramete
                         (*wrapped_value).push(param);
                     }
 
-                    let (new_rest, _) = take_till(|c: char| !c.is_whitespace() )(new_rest)?;
+                    let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
                     state = BracketState::ElementOrOpeningBracket;
                     rest = new_rest;
                 }
@@ -177,30 +178,26 @@ pub fn get_bracketed_expression<'a>(input: &'a str) -> IResult<&'a str, Paramete
                         (*wrapped_value).push(param);
                     }
 
-                    let (new_rest, _) = take_till(|c: char| !c.is_whitespace() )(new_rest)?;
+                    let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
                     state = BracketState::OperatorOrClosingBracket;
                     rest = new_rest;
                 }
-                
             }
             BracketState::ClosingBracket => {
                 let (new_rest, _) = tag(")")(rest)?;
                 let stocked_expr = stack.pop().unwrap();
 
-                if stack.len() > 0 {
-                    if let Parameter::Expr(ref mut wrapped_value) = stack.last_mut().unwrap() {
-                        (*wrapped_value).push(stocked_expr);
-                    }
-                } else {
-                    if let Parameter::Expr(ref mut wrapped_value) = expr {
-                        (*wrapped_value).push(stocked_expr);
-                    }
+                if let Parameter::Expr(expr) = match stack.is_empty() {
+                    false => stack.last_mut().unwrap(),
+                    true => &mut expr,
+                } {
+                    (*expr).push(stocked_expr);
                 }
 
-                let (new_rest, _) = take_till(|c: char| !c.is_whitespace() )(new_rest)?;
+                let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
                 rest = new_rest;
 
-                if stack.len() == 0 {
+                if stack.is_empty() {
                     break;
                 }
 
@@ -212,38 +209,37 @@ pub fn get_bracketed_expression<'a>(input: &'a str) -> IResult<&'a str, Paramete
     Ok((rest, expr))
 }
 
-pub fn get_expression<'a>(input: &'a str) -> IResult<&'a str, Vec<Parameter>> {
+pub fn get_expression(input: &str) -> IResult<&str, Vec<Parameter>> {
     let (mut rest, _) = tag("[")(input)?;
 
     let mut expr: Vec<Parameter> = vec![];
     let mut state = State::ExpectElement;
-    let mut scope = 1;
+    // let mut scope = 1; // unused mut var
 
     loop {
-        dbg!(&expr);
+        // dbg!(&expr);
         match state {
             State::ExpectElement => {
                 let (new_rest, param) = get_elem(rest)?;
                 expr.push(param);
                 state = State::ExpectOperator;
-                let (new_rest, _) = take_till(|c: char| !c.is_whitespace() )(new_rest)?;
+                let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
                 rest = new_rest;
-            },
+            }
             State::ExpectOperator => {
                 match end_bracket(rest) {
-                    Err(_) => {},
+                    Err(_) => {}
                     Ok(_) => {
-                        let (new_rest, _) = take(1 as usize)(rest)?;
+                        let (new_rest, _) = take(1_usize)(rest)?;
                         rest = new_rest;
                         break;
-                    },
+                    }
                 }
                 let (new_rest, param) = operator(rest)?;
                 expr.push(param);
                 state = State::ExpectElement;
-                let (new_rest, _) = take_till(|c: char| !c.is_whitespace() )(new_rest)?;
+                let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
                 rest = new_rest;
-
             }
         }
     }
@@ -272,39 +268,41 @@ fn test_upper_string_ok() {
 
 #[test]
 fn test_expr() {
-    
     let input = "[0x42 + :var - 0o5 * 0b0010]";
-
-    dbg!(get_expression(input));
+    dbg!(get_expression(input).unwrap());
 }
 
 #[test]
 fn test_expr_nrv() {
-    
-    let input = "[0x42 + :var - (0o5 + (0x07 - 0x04) - 0x2) * 0b0010]";
-
-    dbg!(get_expression(input));
+    let input = "[0x42 + :var - (0o5 * (0x07 - 0x04) - 0x2) * 0b0010]";
+    dbg!(get_expression(input).unwrap());
 }
 
 #[test]
 fn test_mov_instruction() {
     let input = "mov 0x4f bh";
-
     let (_, ins) = get_ins(input).unwrap();
     dbg!(&ins);
-    assert_eq!(ins, Instruction{
-        name: "mov".to_owned(),
-        param1: Parameter::Lit(79),
-        param2: Parameter::RegU8(5),
-    });
+
+    assert_eq!(
+        ins,
+        Instruction {
+            name: "mov".to_owned(),
+            param1: Parameter::Lit(79),
+            param2: Parameter::RegU8(5),
+        }
+    );
 
     let input = "add 0b1010011010 0o1232";
-
     let (_, ins) = get_ins(input).unwrap();
     dbg!(&ins);
-    assert_eq!(ins, Instruction{
-        name: "add".to_owned(),
-        param1: Parameter::Lit(666),
-        param2: Parameter::Lit(666),
-    });
+
+    assert_eq!(
+        ins,
+        Instruction {
+            name: "add".to_owned(),
+            param1: Parameter::Lit(666),
+            param2: Parameter::Lit(666),
+        }
+    );
 }
