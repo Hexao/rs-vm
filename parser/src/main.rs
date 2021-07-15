@@ -141,6 +141,9 @@ pub fn get_bracketed_expression(input: &str) -> IResult<&str, Parameter> {
         Parameter::Expr(vec![]),
     ];
 
+    let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(rest)?;
+    rest = new_rest;
+
     loop {
         let (_, next_character) = next_char(&rest[..1])?;
         match state {
@@ -155,6 +158,8 @@ pub fn get_bracketed_expression(input: &str) -> IResult<&str, Parameter> {
             BracketState::OperatorOrClosingBracket => {
                 if next_character == ')' {
                     state = BracketState::ClosingBracket;
+                    let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(rest)?;
+                    rest = new_rest;
                 } else {
                     let (new_rest, param) = operator(rest)?;
                     if let Parameter::Expr(ref mut wrapped_value) = stack.last_mut().unwrap() {
@@ -172,6 +177,8 @@ pub fn get_bracketed_expression(input: &str) -> IResult<&str, Parameter> {
                 }*/
                 if next_character == '(' {
                     state = BracketState::OpenBracket;
+                    let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(rest)?;
+                    rest = new_rest;
                 } else {
                     let (new_rest, param) = get_elem(rest)?;
                     if let Parameter::Expr(ref mut wrapped_value) = stack.last_mut().unwrap() {
@@ -214,6 +221,8 @@ pub fn get_expression(input: &str) -> IResult<&str, Vec<Parameter>> {
 
     let mut expr: Vec<Parameter> = vec![];
     let mut state = State::ExpectElement;
+    let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(rest)?;
+    rest = new_rest;
     // let mut scope = 1; // unused mut var
 
     loop {
@@ -274,7 +283,7 @@ fn test_expr() {
 
 #[test]
 fn test_expr_nrv() {
-    let input = "[0x42 + :var - (0o5 * (0x07 - 0x04) - 0x2) * 0b0010]";
+    let input = "[0x42 + :var - ( (0x07 - 0x04) - 0x2) * 0b0010]";
     dbg!(get_expression(input).unwrap());
 }
 
