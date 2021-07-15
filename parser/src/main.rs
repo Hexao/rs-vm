@@ -2,7 +2,7 @@
 extern crate nom;
 
 use nom::{
-    bytes::complete::{tag, tag_no_case, take, take_till},
+    bytes::complete::{tag, tag_no_case},
     character::complete::{alpha1, anychar, digit1, hex_digit1, oct_digit1, space0, space1},
     IResult,
 };
@@ -106,7 +106,7 @@ named!(var<&str, Parameter>, do_parse!(_prefix: tag!(":") >> value: alpha1 >> (P
 
 named!(get_elem<&str, Parameter>, alt!(lit | var | get_bracketed_expression));
 
-named!(end_bracket<&str, &str>, peek!(tag!("]")));
+named!(end_bracket<&str, &str>, tag!("]"));
 
 named!(next_char<&str, char>, peek!(anychar));
 
@@ -120,11 +120,6 @@ pub fn upper_or_lower_str<'a>(to_match: &'a str, input: &'a str) -> IResult<&'a 
     tag_no_case(to_match)(input)
 }
 
-pub enum State {
-    ExpectElement,
-    ExpectOperator,
-}
-
 pub enum BracketState {
     OpenBracket,
     OperatorOrClosingBracket,
@@ -133,24 +128,24 @@ pub enum BracketState {
 }
 
 pub fn get_bracketed_expression(input: &str) -> IResult<&str, Parameter> {
-    let (mut rest, _) = tag("(")(input)?;
-    let mut expr = Parameter::Expr(vec![]);
+    let (rest, _) = tag("(")(input)?;
+    let (mut rest, _spaces) = space0(rest)?;
     let mut state = BracketState::ElementOrOpeningBracket;
 
     let mut stack = vec![
         Parameter::Expr(vec![]),
     ];
 
-    loop {
+    let expr = loop {
         let (_, next_character) = next_char(&rest[..1])?;
         match state {
             BracketState::OpenBracket => {
                 let (new_rest, _) = tag("(")(rest)?;
-                //expr.push(Parameter::Expr(vec![]));
                 stack.push(Parameter::Expr(vec![]));
-                let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
-                rest = new_rest;
+
+                let (new_rest, _spaces) = space0(new_rest)?;
                 state = BracketState::ElementOrOpeningBracket;
+                rest = new_rest;
             }
             BracketState::OperatorOrClosingBracket => {
                 if next_character == ')' {
@@ -161,15 +156,12 @@ pub fn get_bracketed_expression(input: &str) -> IResult<&str, Parameter> {
                         (*wrapped_value).push(param);
                     }
 
-                    let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
+                    let (new_rest, _spaces) = space0(new_rest)?;
                     state = BracketState::ElementOrOpeningBracket;
                     rest = new_rest;
                 }
             }
             BracketState::ElementOrOpeningBracket => {
-                /*if next_character.chars().nth(0).unwrap() == ')' {
-                    return make_error(rest, ErrorKind::Tag);
-                }*/
                 if next_character == '(' {
                     state = BracketState::OpenBracket;
                 } else {
@@ -178,71 +170,59 @@ pub fn get_bracketed_expression(input: &str) -> IResult<&str, Parameter> {
                         (*wrapped_value).push(param);
                     }
 
-                    let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
+                    let (new_rest, _spaces) = space0(new_rest)?;
                     state = BracketState::OperatorOrClosingBracket;
                     rest = new_rest;
                 }
             }
             BracketState::ClosingBracket => {
                 let (new_rest, _) = tag(")")(rest)?;
+                let (new_rest, _spaces) = space0(new_rest)?;
+
                 let stocked_expr = stack.pop().unwrap();
-
-                if let Parameter::Expr(expr) = match stack.is_empty() {
-                    false => stack.last_mut().unwrap(),
-                    true => &mut expr,
-                } {
-                    (*expr).push(stocked_expr);
-                }
-
-                let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
+                state = BracketState::OperatorOrClosingBracket;
                 rest = new_rest;
 
-                if stack.is_empty() {
-                    break;
+                match stack.is_empty() {
+                    true => break stocked_expr,
+                    false => {
+                        if let Parameter::Expr(expr) = stack.last_mut().unwrap() {
+                            (*expr).push(stocked_expr);
+                        }
+                    }
                 }
-
-                state = BracketState::OperatorOrClosingBracket;
             }
         }
-    }
+    };
 
     Ok((rest, expr))
 }
 
 pub fn get_expression(input: &str) -> IResult<&str, Vec<Parameter>> {
-    let (mut rest, _) = tag("[")(input)?;
-
     let mut expr: Vec<Parameter> = vec![];
-    let mut state = State::ExpectElement;
-    // let mut scope = 1; // unused mut var
+    let (rest, _) = tag("[")(input)?;
+    let (mut rest, _spaces) = space0(rest)?;
 
     loop {
-        // dbg!(&expr);
-        match state {
-            State::ExpectElement => {
-                let (new_rest, param) = get_elem(rest)?;
-                expr.push(param);
-                state = State::ExpectOperator;
-                let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
-                rest = new_rest;
-            }
-            State::ExpectOperator => {
-                match end_bracket(rest) {
-                    Err(_) => {}
-                    Ok(_) => {
-                        let (new_rest, _) = take(1_usize)(rest)?;
-                        rest = new_rest;
-                        break;
-                    }
-                }
-                let (new_rest, param) = operator(rest)?;
-                expr.push(param);
-                state = State::ExpectElement;
-                let (new_rest, _) = take_till(|c: char| !c.is_whitespace())(new_rest)?;
-                rest = new_rest;
-            }
+        // expect element
+        let (new_rest, param) = get_elem(rest)?;
+        let (new_rest, _spaces) = space0(new_rest)?;
+        expr.push(param);
+
+        // end bracket
+        if let Ok((new_rest, _bracket)) = end_bracket(new_rest) {
+            rest = new_rest;
+            break;
         }
+
+        // expext operator
+        let (new_rest, param) = operator(new_rest)?;
+        let (new_rest, _spaces) = space0(new_rest)?;
+        expr.push(param);
+
+        rest = new_rest;
     }
+
     Ok((rest, expr))
 }
 
@@ -275,7 +255,7 @@ fn test_expr() {
 #[test]
 fn test_expr_nrv() {
     let input = "[0x42 + :var - (0o5 * (0x07 - 0x04) - 0x2) * 0b0010]";
-    dbg!(get_expression(input).unwrap());
+    println!("{:?}", get_expression(input).unwrap());
 }
 
 #[test]
