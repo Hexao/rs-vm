@@ -221,6 +221,92 @@ pub fn get_expression(input: &str) -> IResult<&str, Vec<Parameter>> {
     Ok((rest, expr))
 }
 
+pub fn reduce_expression(expr: &mut Vec<Parameter>) -> Option<u16> {
+    // locked lit
+    let mut locked = vec![false; expr.len()];
+
+    // looking for sub Expr
+    for parameter in expr.iter_mut() {
+        if let Parameter::Expr(sub) = parameter {
+            if let Some(lit) = reduce_expression(sub) {
+                *parameter = Parameter::Lit(lit);
+            }
+        }
+    }
+
+    // reduce with multiply
+    let mut id = 1;
+
+    while id < expr.len() {
+        if let Parameter::Operator(Operator::Multiply) = expr[id] {
+            let reduce = if let (Parameter::Lit(a), Parameter::Lit(b)) = (&expr[id - 1], &expr[id + 1]) {
+                Some(a * b)
+            } else {
+                None
+            };
+
+            if let Some(lit) = reduce {
+                expr.drain(id - 1..id + 1);
+                expr[id - 1] = Parameter::Lit(lit);
+            } else {
+                locked[id / 2] = true;
+                locked[id / 2 + 1] = true;
+
+                id += 2;
+            }
+        } else {
+            id += 2;
+        }
+    }
+
+    // reduce with others
+    id = 1;
+
+    while id < expr.len() {
+        if locked[id / 2] || locked[id / 2 + 1] {
+            id += 2;
+            continue;
+        }
+
+        let reduce = match &expr[id] {
+            Parameter::Operator(Operator::Multiply) => None,
+            Parameter::Operator(Operator::Plus) => {
+                if let (Parameter::Lit(a), Parameter::Lit(b)) = (&expr[id - 1], &expr[id + 1]) {
+                    Some(a + b)
+                } else {
+                    None
+                }
+            }
+            Parameter::Operator(Operator::Minus) => {
+                if let (Parameter::Lit(a), Parameter::Lit(b)) = (&expr[id - 1], &expr[id + 1]) {
+                    Some(a - b)
+                } else {
+                    None
+                }
+            }
+            op => panic!("unexpected operator: {:?}", op),
+        };
+
+        if let Some(lit) = reduce {
+            expr.drain(id - 1..id + 1);
+            expr[id - 1] = Parameter::Lit(lit);
+        } else {
+            id += 2;
+        }
+    }
+
+    match expr.len() {
+        1 => {
+            if let Parameter::Lit(lit) = &expr[0] {
+                Some(*lit)
+            } else {
+                None
+            }
+        }
+        _ => None
+    }
+}
+
 fn main() {
     println!("Hello, world!");
 }
@@ -244,13 +330,17 @@ fn test_upper_string_ok() {
 #[test]
 fn test_expr() {
     let input = "[0x42 + :var - 0o5 * 0b0010]";
-    dbg!(get_expression(input).unwrap());
+    println!("{:?}", get_expression(input).unwrap().1);
 }
 
 #[test]
 fn test_expr_nrv() {
-    let input = "[0x42 + :var - (0o5 * (7 - 0x04) - 0o2) * 0b0010]";
-    println!("{:?}", get_expression(input).unwrap());
+    let input = "[0x42 + :var * (0o5 * (7 - 0x04) - 0o2) - 0b0010]";
+    let mut expr = get_expression(input).unwrap().1;
+    println!("{:?}", expr);
+
+    reduce_expression(&mut expr);
+    println!("{:?}", expr);
 }
 
 #[test]
