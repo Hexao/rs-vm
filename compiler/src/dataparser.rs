@@ -58,9 +58,8 @@ impl DataParser {
             let mut name = "";
             let mut var = Var::default();
             let mut expect = Expect::Name;
-            let mut captures = reg.captures_iter(&line);
 
-            while let Some(next) = captures.next() {
+            for next in reg.captures_iter(&line) {
                 if next.get(DataParser::SEPARATOR).is_some() {
                     if expect.match_with(DataParser::SEPARATOR) {
                         expect = Expect::Value;
@@ -189,7 +188,7 @@ impl DataParser {
 
         for key in self.order {
             let var = self.vars.get_mut(&key).unwrap();
-            vec.append(&mut var.get_data_mut());
+            vec.append(var.get_data_mut());
         }
 
         vec

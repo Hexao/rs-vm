@@ -81,7 +81,7 @@ mod tests {
         assert_eq!(m.get_memory_at_u8(0x05).unwrap(), 0x20);
         assert_eq!(m.get_memory_at_u16(0x05).unwrap(), 0x2000);
 
-        assert_eq!(m.get_memory_at_u8(0x40).is_err(), true);
+        assert!(m.get_memory_at_u8(0x40).is_err());
     }
 
     #[test]
