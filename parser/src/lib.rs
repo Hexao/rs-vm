@@ -35,14 +35,14 @@ pub enum Parameter {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct Instruction {
-    name: String,
-    param1: Parameter,
-    param2: Parameter,
+pub struct Instruction {
+    pub name: String,
+    pub param1: Option<Parameter>,
+    pub param2: Option<Parameter>,
 }
 
 impl Instruction {
-    pub fn new(name: &str, param1: Parameter, param2: Parameter) -> Self {
+    pub fn new(name: &str, param1: Option<Parameter>, param2: Option<Parameter>) -> Self {
         Self {
             name: name.to_owned(),
             param1,
@@ -51,9 +51,9 @@ impl Instruction {
     }
 }
 
-#[derive(Default, Debug)]
-struct Program {
-    instructions: Vec<Instruction>,
+#[derive(Default, Debug, PartialEq, Eq)]
+pub struct Program {
+    pub instructions: Vec<Instruction>,
 }
 
 named!(ins<&str, &str>, alt!(
@@ -62,7 +62,8 @@ named!(ins<&str, &str>, alt!(
     tag_no_case!("lsf") | tag_no_case!("rsf") |
     tag_no_case!("xor") | tag_no_case!("cmp") |
     tag_no_case!("jmp") | tag_no_case!("jne") |
-    tag_no_case!("and") | tag_no_case!("or")
+    tag_no_case!("and") | tag_no_case!("or")  |
+    tag_no_case!("dec") | tag_no_case!("inc")
 ));
 
 named!(reg_8<&str, Parameter>, do_parse!(reg_8: alt!(
@@ -93,13 +94,19 @@ named!(lit<&str, Parameter>, do_parse!(lit: alt!(
     Parameter::Lit(lit)
 )));
 
-named!(get_param<&str, Parameter>, alt!(reg_8 | reg_16 | lit));
+named!(get_param<&str, Parameter>, alt!(reg_8 | reg_16 | lit | var | get_expression));
 
-named!(get_ins<&str, Instruction>, do_parse!(
+named!(get_double_param_ins<&str, Instruction>, do_parse!(
     name: terminated!(ins, space1) >>
     r1: terminated!(get_param, space1) >>
     r2: terminated!(get_param, space0) >>
-    (Instruction::new(name, r1, r2))
+    (Instruction::new(name, Some(r1), Some(r2)))
+));
+
+named!(get_single_param_ins<&str, Instruction>, do_parse!(
+    name: terminated!(ins, space1) >>
+    r1: terminated!(get_param, space0) >>
+    (Instruction::new(name, Some(r1), None))
 ));
 
 named!(var<&str, Parameter>, do_parse!(_prefix: tag!(":") >> value: alpha1 >> (Parameter::Var(value.to_string()))));
@@ -115,6 +122,8 @@ named!(operator<&str,Parameter>, alt!(
     do_parse!(_prefix: tag!("-") >> (Parameter::Operator(Operator::Minus))) |
     do_parse!(_prefix: tag!("*") >> (Parameter::Operator(Operator::Multiply)))
 ));
+
+named!(read_instruction<&str, Instruction>, alt!(get_double_param_ins | get_single_param_ins));
 
 pub fn upper_or_lower_str<'a>(to_match: &'a str, input: &'a str) -> IResult<&'a str, &'a str> {
     tag_no_case(to_match)(input)
@@ -193,7 +202,7 @@ pub fn get_bracketed_expression(mut input: &str) -> IResult<&str, Parameter> {
     Ok((input, expr))
 }
 
-pub fn get_expression(input: &str) -> IResult<&str, Vec<Parameter>> {
+pub fn get_expression(input: &str) -> IResult<&str, Parameter> {
     let mut expr: Vec<Parameter> = vec![];
     let (rest, _) = tag("[")(input)?;
     let (mut rest, _spaces) = space0(rest)?;
@@ -210,7 +219,7 @@ pub fn get_expression(input: &str) -> IResult<&str, Vec<Parameter>> {
             break;
         }
 
-        // expext operator
+        // expect operator
         let (new_rest, param) = operator(new_rest)?;
         let (new_rest, _spaces) = space0(new_rest)?;
         expr.push(param);
@@ -218,7 +227,7 @@ pub fn get_expression(input: &str) -> IResult<&str, Vec<Parameter>> {
         rest = new_rest;
     }
 
-    Ok((rest, expr))
+    Ok((rest, Parameter::Expr(expr)))
 }
 
 pub fn reduce_expression(expr: &mut Vec<Parameter>) -> Option<u16> {
@@ -307,8 +316,32 @@ pub fn reduce_expression(expr: &mut Vec<Parameter>) -> Option<u16> {
     }
 }
 
-fn main() {
-    println!("Hello, world!");
+pub fn parse_program(code: &str) -> IResult<&str, Program> {
+    let mut program = Program { instructions: vec![] };
+
+    let lines = code.lines();
+
+    for line in lines {
+        let (_, mut instruction) = read_instruction(line)?;
+
+        if let Some(param) = &mut instruction.param1 {
+            if let Parameter::Expr(expr) = param {
+                reduce_expression(expr);
+            }
+        }
+
+        if let Some(param) = &mut instruction.param2 {
+            if let Parameter::Expr(expr) = param {
+                reduce_expression(expr);
+            }
+        }
+
+        
+
+        program.instructions.push(instruction);
+    }
+
+    Ok((code, program))
 }
 
 #[test]
@@ -336,38 +369,101 @@ fn test_expr() {
 #[test]
 fn test_expr_nrv() {
     let input = "[0x42 + :var * (0o5 * (7 - 0x04) - 0o2) - 0b0010]";
-    let mut expr = get_expression(input).unwrap().1;
-    println!("{:?}", expr);
-
-    reduce_expression(&mut expr);
-    println!("{:?}", expr);
+    let mut param = get_expression(input).unwrap().1;
+    println!("{:?}", param);
+    if let Parameter::Expr(expr) = &mut param {
+        reduce_expression(expr);
+        println!("{:?}", expr);
+    }
 }
 
 #[test]
 fn test_mov_instruction() {
     let input = "mov 0x4f bh";
-    let (_, ins) = get_ins(input).unwrap();
+    let (_, ins) = get_double_param_ins(input).unwrap();
     dbg!(&ins);
 
     assert_eq!(
         ins,
         Instruction {
             name: "mov".to_owned(),
-            param1: Parameter::Lit(79),
-            param2: Parameter::RegU8(5),
+            param1: Some(Parameter::Lit(79)),
+            param2: Some(Parameter::RegU8(5)),
         }
     );
 
     let input = "add 0b1010011010 0o1232";
-    let (_, ins) = get_ins(input).unwrap();
+    let (_, ins) = get_double_param_ins(input).unwrap();
     dbg!(&ins);
 
     assert_eq!(
         ins,
         Instruction {
             name: "add".to_owned(),
-            param1: Parameter::Lit(666),
-            param2: Parameter::Lit(666),
+            param1: Some(Parameter::Lit(666)),
+            param2: Some(Parameter::Lit(666)),
         }
     );
+}
+
+#[test]
+fn test_inc_instruction() {
+    let input = "inc bh";
+    let (_, ins) = get_single_param_ins(input).unwrap();
+    dbg!(&ins);
+
+    assert_eq!(
+        ins,
+        Instruction {
+            name: "inc".to_owned(),
+            param1: Some(Parameter::RegU8(5)),
+            param2: None,
+        }
+    );
+}
+
+#[test]
+fn test_program() {
+    let input = r#"mov [0x42 + :var * (0o5 * (7 - 0x04) - 0o2) - 0b0010] ah
+inc ah
+mov ah bh"#;
+
+    let (_, program) = parse_program(input).unwrap();
+    dbg!(&program);
+
+    let expr = vec![
+        Parameter::Lit(66),
+        Parameter::Operator(Operator::Plus),
+        Parameter::Var(String::from("var")),
+        Parameter::Operator(Operator::Multiply),
+        Parameter::Lit(13),
+        Parameter::Operator(Operator::Minus),
+        Parameter::Lit(2)
+    ];
+
+    let ins1 = Instruction {
+        name: "mov".to_owned(),
+        param1: Some(Parameter::Expr(expr)),
+        param2: Some(Parameter::RegU8(2)),
+    };
+
+    let ins2 = Instruction {
+        name: "inc".to_owned(),
+        param1: Some(Parameter::RegU8(2)),
+        param2: None,
+    };
+
+    let ins3 = Instruction {
+        name: "mov".to_owned(),
+        param1: Some(Parameter::RegU8(2)),
+        param2: Some(Parameter::RegU8(5)),
+    };
+
+    assert_eq!(
+        program,
+        Program {
+            instructions: vec![ins1, ins2, ins3]
+        }
+    );
+
 }
