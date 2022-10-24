@@ -19,8 +19,20 @@ fn main() {
 
     let dir = "data/output/";
     let args: Args = Args::from_args();
-    let mut file = File::open(format!("{}{}.vmo", dir, args.source)).unwrap();
-    file.read_to_end(&mut instructions).unwrap();
+    let path = format!("{}{}.vmo", dir, args.source);
+
+    let mut file = match File::open(&path) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("Can't open file {path}: {e}");
+            return;
+        }
+    };
+
+    if let Err(e) = file.read_to_end(&mut instructions) {
+        eprintln!("Error while reading file {path}: {e}");
+        return;
+    };
 
     // cpu.print_registers();
     let start = std::time::Instant::now();

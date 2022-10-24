@@ -83,8 +83,9 @@ impl MemoryIO for Screen {
         }
 
         self.move_to(x + 1, y + 1);
-        let character = std::char::from_u32(data as u32).unwrap();
-        print!("{}", character);
+        let character = char::from_u32(data as u32)
+            .ok_or(MemoryError::UnexpectedData(data as u16, location))?;
+        print!("{character}");
 
         Ok(())
     }
@@ -103,10 +104,11 @@ impl MemoryIO for Screen {
 
         self.move_to(x + 1, y + 1);
         let code = (data >> 8) as u8;
-        let character = std::char::from_u32((data & 0xFF) as u32).unwrap();
+        let character = char::from_u32((data & 0xFF) as u32)
+            .ok_or(MemoryError::UnexpectedData(data, location))?;
 
         self.exec_code(code);
-        print!("{}", character);
+        print!("{character}");
 
         Ok(())
     }
