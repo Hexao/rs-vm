@@ -1,17 +1,20 @@
 use std::collections::HashMap;
 
-use super::memory_map::MemoryMap;
-use super::screen::Screen;
 use super::memory::Memory;
 use super::memory_io::*;
+use super::memory_map::MemoryMap;
+use super::screen::Screen;
 
+use arch::flags::*;
 use arch::instructions::*;
 use arch::registers::*;
 
 macro_rules! register {
     ($self:ident, $reg:expr => $data:ident) => {
         match SIZE_OF[$reg] {
-            1 => $self.registers.set_memory_at_u8(ADDRESS_OF[$reg], $data as u8),
+            1 => $self
+                .registers
+                .set_memory_at_u8(ADDRESS_OF[$reg], $data as u8),
             2 => $self.registers.set_memory_at_u16(ADDRESS_OF[$reg], $data),
             x => Err(MemoryError::BadRegisterLen(x)),
         }
@@ -29,15 +32,25 @@ macro_rules! register {
 macro_rules! flag {
     ($self:ident, $value:ident) => {
         $self.flags = 0;
-        if $value == 0 { $self.flags |= CPU::F_ZERO_VAL; }
-        if $value > 0x7F { $self.flags |= CPU::F_NEGATIF; }
+        if $value == 0 {
+            $self.flags |= F_ZERO_VAL;
+        }
+        if $value > 0x7F {
+            $self.flags |= F_NEGATIF;
+        }
     };
 
     ($self:ident, $value:ident, $carry:ident) => {
         $self.flags = 0;
-        if $value == 0 { $self.flags |= CPU::F_ZERO_VAL; }
-        if $value > 0x7F { $self.flags |= CPU::F_NEGATIF; }
-        if $carry { $self.flags |= CPU::F_CARRY; }
+        if $value == 0 {
+            $self.flags |= F_ZERO_VAL;
+        }
+        if $value > 0x7F {
+            $self.flags |= F_NEGATIF;
+        }
+        if $carry {
+            $self.flags |= F_CARRY;
+        }
     };
 }
 
@@ -53,10 +66,6 @@ pub struct CPU {
 }
 
 impl CPU {
-    const F_ZERO_VAL: u8 = 1; // bit0
-    const F_NEGATIF : u8 = 2; // bit1
-    const F_CARRY   : u8 = 4; // bit2
-
     pub fn get_register(&self, name: &'static str) -> Result<u16, MemoryError> {
         match self.register_map.get(name) {
             Some(reg) => register!(self, *reg),
@@ -73,8 +82,7 @@ impl CPU {
 
     pub fn print_registers(&self) {
         let regs = [
-            "ip", "acc", "ax", "bx", "cx", "dx",
-            "ex", "fx", "gx", "hx", "sp", "fp"
+            "ip", "acc", "ax", "bx", "cx", "dx", "ex", "fx", "gx", "hx", "sp", "fp",
         ];
 
         print!("Label            : "); // gap to align text
@@ -258,7 +266,7 @@ impl CPU {
                         flag!(self, mem_val);
                         Ok(register!(self, r2 => mem_val)?)
                     }
-                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                 }
             }
             // Move value from register to memory address pointed by register
@@ -286,10 +294,10 @@ impl CPU {
                         match SIZE_OF[r1] {
                             1 => Ok(self.memory.set_memory_at_u8(mem_loc, val as u8)?),
                             2 => Ok(self.memory.set_memory_at_u16(mem_loc, val)?),
-                            x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                            x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                         }
                     }
-                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                 }
             }
             // Move value from memory address = [literal + register] to register
@@ -301,16 +309,17 @@ impl CPU {
                 match SIZE_OF[r1] {
                     1 => Err(ExecutionError::BadRegisterPtrLen),
                     2 => {
-
                         let offset = self.registers.get_memory_at_u16(r1)? as usize;
-                        let val = self.memory.get_memory_at_u16( base_address + offset)?;
+                        let val = self.memory.get_memory_at_u16(base_address + offset)?;
 
                         #[cfg(debug_assertions)]
                         {
                             let r2_name = REGISTER_NAMES[r2];
                             println!(
                                 "Move value {:#06X} from {:#06X} in memory to {}",
-                                val, base_address + offset, r2_name
+                                val,
+                                base_address + offset,
+                                r2_name
                             );
                         }
 
@@ -318,10 +327,10 @@ impl CPU {
                         match SIZE_OF[r2] {
                             1 => Ok(self.registers.set_memory_at_u8(ADDRESS_OF[r2], val as u8)?),
                             2 => Ok(self.registers.set_memory_at_u16(ADDRESS_OF[r2], val)?),
-                            x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                            x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                         }
                     }
-                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                 }
             }
             // unconditional jump to literal (label)
@@ -355,7 +364,8 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 println!("Jump to {:#06X} (literal) if flag ZERO is set to true", add);
 
-                if (self.flags & CPU::F_ZERO_VAL) != 0 { // flag f_zero_val is on
+                if (self.flags & F_ZERO_VAL) != 0 {
+                    // flag f_zero_val is on
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -368,10 +378,14 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Jump to {:#06X} (value of {}) if flag ZERO is set to true", add, reg_name);
+                    println!(
+                        "Jump to {:#06X} (value of {}) if flag ZERO is set to true",
+                        add, reg_name
+                    );
                 }
 
-                if (self.flags & CPU::F_ZERO_VAL) != 0 { // flag f_zero_val is on
+                if (self.flags & F_ZERO_VAL) != 0 {
+                    // flag f_zero_val is on
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -381,9 +395,13 @@ impl CPU {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (literal) if flag ZERO is set to false", add);
+                println!(
+                    "Jump to {:#06X} (literal) if flag ZERO is set to false",
+                    add
+                );
 
-                if (self.flags & CPU::F_ZERO_VAL) == 0 { // flag f_zero_val is off
+                if (self.flags & F_ZERO_VAL) == 0 {
+                    // flag f_zero_val is off
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -396,10 +414,14 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Jump to {:#06X} (value of {}) if flag ZERO is set to false", add, reg_name);
+                    println!(
+                        "Jump to {:#06X} (value of {}) if flag ZERO is set to false",
+                        add, reg_name
+                    );
                 }
 
-                if (self.flags & CPU::F_ZERO_VAL) == 0 { // flag f_zero_val is off
+                if (self.flags & F_ZERO_VAL) == 0 {
+                    // flag f_zero_val is off
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -409,9 +431,12 @@ impl CPU {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (literal) if flags ZERO and NEGATIF are set to false", add);
+                println!(
+                    "Jump to {:#06X} (literal) if flags ZERO and NEGATIF are set to false",
+                    add
+                );
 
-                if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == 0 {
+                if (self.flags & (F_ZERO_VAL | F_NEGATIF)) == 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -424,10 +449,13 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Jump to {:#06X} (value of {}) if flags ZERO and NEGATIF are set to false", add, reg_name);
+                    println!(
+                        "Jump to {:#06X} (value of {}) if flags ZERO and NEGATIF are set to false",
+                        add, reg_name
+                    );
                 }
 
-                if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == 0 {
+                if (self.flags & (F_ZERO_VAL | F_NEGATIF)) == 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -437,9 +465,12 @@ impl CPU {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (literal) if flag NEGATIF is set to false", add);
+                println!(
+                    "Jump to {:#06X} (literal) if flag NEGATIF is set to false",
+                    add
+                );
 
-                if (self.flags & CPU::F_NEGATIF) == 0 {
+                if (self.flags & F_NEGATIF) == 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -452,10 +483,13 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Jump to {:#06X} (value of {}) if flag NEGATIF is set to false", add, reg_name);
+                    println!(
+                        "Jump to {:#06X} (value of {}) if flag NEGATIF is set to false",
+                        add, reg_name
+                    );
                 }
 
-                if (self.flags & CPU::F_NEGATIF) == 0 {
+                if (self.flags & F_NEGATIF) == 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -467,7 +501,8 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 println!("Jump to {:#06X} (literal) if flag ZERO is set to false and flag NEGATIF is set to true", add);
 
-                if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == CPU::F_NEGATIF { // not equal + neg
+                if (self.flags & (F_ZERO_VAL | F_NEGATIF)) == F_NEGATIF {
+                    // not equal + neg
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -483,7 +518,8 @@ impl CPU {
                     println!("Jump to {:#06X} (value of {}) if flag ZERO is set to false and flag NEGATIF is set to true", add, reg_name);
                 }
 
-                if (self.flags & (CPU::F_ZERO_VAL | CPU::F_NEGATIF)) == CPU::F_NEGATIF { // not equal + neg
+                if (self.flags & (F_ZERO_VAL | F_NEGATIF)) == F_NEGATIF {
+                    // not equal + neg
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -493,9 +529,12 @@ impl CPU {
                 let add = self.fetch_u16()?;
 
                 #[cfg(debug_assertions)]
-                println!("Jump to {:#06X} (literal) if flag NEGATIF and ZERO are set to true", add);
+                println!(
+                    "Jump to {:#06X} (literal) if flag NEGATIF and ZERO are set to true",
+                    add
+                );
 
-                if (self.flags & (CPU::F_NEGATIF | CPU::F_ZERO_VAL)) != 0 {
+                if (self.flags & (F_NEGATIF | F_ZERO_VAL)) != 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -508,10 +547,13 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Jump to {:#06X} (value of {}) if flag NEGATIF and ZERO are set to true", add, reg_name);
+                    println!(
+                        "Jump to {:#06X} (value of {}) if flag NEGATIF and ZERO are set to true",
+                        add, reg_name
+                    );
                 }
 
-                if (self.flags & (CPU::F_NEGATIF | CPU::F_ZERO_VAL)) != 0 {
+                if (self.flags & (F_NEGATIF | F_ZERO_VAL)) != 0 {
                     self.set_register("ip", add)?;
                 }
                 Ok(())
@@ -581,7 +623,10 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Substract {} from {:#06X}, store result in ACC", reg_name, val);
+                    println!(
+                        "Substract {} from {:#06X}, store result in ACC",
+                        reg_name, val
+                    );
                 }
 
                 let reg_val = register!(self, reg)?;
@@ -598,7 +643,10 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Substract {:#06X} from {}, store result in ACC", val, reg_name);
+                    println!(
+                        "Substract {:#06X} from {}, store result in ACC",
+                        val, reg_name
+                    );
                 }
 
                 let reg_val = register!(self, reg)?;
@@ -635,7 +683,10 @@ impl CPU {
                 #[cfg(debug_assertions)]
                 {
                     let reg_name = REGISTER_NAMES[reg];
-                    println!("Multiply {} and {:#06X}, store result in ACC", reg_name, val);
+                    println!(
+                        "Multiply {} and {:#06X}, store result in ACC",
+                        reg_name, val
+                    );
                 }
 
                 let reg_val = register!(self, reg)?;
@@ -814,7 +865,7 @@ impl CPU {
                         flag!(self, value);
                         self.push(value)
                     }
-                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                 }
             }
             // Push memory poinyed by register on stack
@@ -839,7 +890,7 @@ impl CPU {
                         flag!(self, value);
                         self.push(value)
                     }
-                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x)))
+                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
                 }
             }
             // Pop stack head to given register
@@ -1324,18 +1375,21 @@ impl Default for CPU {
     fn default() -> Self {
         let mut memory = MemoryMap::default();
         let screen = Screen::new(64, 64);
-        memory.add_device(Box::new(screen), 0x3000).unwrap();
+        memory.add_device(screen, 0x3000).unwrap();
 
         let mut registers = Memory::new(REGISTER_NAMES.len() * 2);
-        registers.set_memory_at_u16(ADDRESS_OF[SP as usize], 0xFFFE).unwrap();
-        registers.set_memory_at_u16(ADDRESS_OF[FP as usize], 0xFFFE).unwrap();
+        registers
+            .set_memory_at_u16(ADDRESS_OF[SP as usize], 0xFFFE)
+            .unwrap();
+        registers
+            .set_memory_at_u16(ADDRESS_OF[FP as usize], 0xFFFE)
+            .unwrap();
 
         // HashMap gives the register_id with the register name given
-        let register_map = REGISTER_NAMES.iter()
-            .fold(HashMap::new(), |mut map, s| {
-                let _ = map.insert(*s, map.len());
-                map
-            });
+        let register_map = REGISTER_NAMES.iter().fold(HashMap::new(), |mut map, s| {
+            let _ = map.insert(*s, map.len());
+            map
+        });
 
         Self {
             memory,
@@ -1364,9 +1418,15 @@ impl From<MemoryError> for ExecutionError {
 impl std::fmt::Debug for ExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let error = match self {
-            ExecutionError::InternalMemoryError(error) => format!("Internal memory error: {:?}", error),
-            ExecutionError::UnexpectedInstruction(ins) => format!("Instruction {:#04X} is not permitted", ins),
-            ExecutionError::BadRegisterPtrLen => "Register of 8bit size can't be a memory ptr".to_owned(),
+            ExecutionError::InternalMemoryError(error) => {
+                format!("Internal memory error: {:?}", error)
+            }
+            ExecutionError::UnexpectedInstruction(ins) => {
+                format!("Instruction {:#04X} is not permitted", ins)
+            }
+            ExecutionError::BadRegisterPtrLen => {
+                "Register of 8bit size can't be a memory ptr".to_owned()
+            }
             ExecutionError::BadReturn => "Can't return outside of stackframe".to_owned(),
             ExecutionError::EndOfExecution => "CPU reaches end of executable code".to_owned(),
         };
