@@ -1,15 +1,14 @@
-use super::memory_io::MemoryError;
-use crate::component::memory::Memory;
+use super::{device::Device, memory::Memory, memory_io::MemoryError};
 use crate::component::memory_io::MemoryIO;
 
 struct Region {
-    device: Box<dyn MemoryIO>,
+    device: Device,
     start: usize,
     end: usize,
 }
 
 impl Region {
-    fn new(device: Box<dyn MemoryIO>, start: usize) -> Result<Self, MemoryError> {
+    fn new(device: Device, start: usize) -> Result<Self, MemoryError> {
         let len = device.len();
         let end = start + len;
 
@@ -29,7 +28,7 @@ impl Default for Region {
     fn default() -> Self {
         let memory = Memory::new(0x1_0000);
         Self {
-            device: Box::new(memory),
+            device: memory.into(),
             start: 0x0000,
             end: 0xFFFF,
         }
@@ -43,10 +42,10 @@ pub struct MemoryMap {
 impl MemoryMap {
     pub fn add_device(
         &mut self,
-        device: Box<dyn MemoryIO>,
+        device: impl Into<Device>,
         start: usize,
     ) -> Result<(), MemoryError> {
-        let reg = Region::new(device, start)?;
+        let reg = Region::new(device.into(), start)?;
         self.regions.push(reg);
         Ok(())
     }
