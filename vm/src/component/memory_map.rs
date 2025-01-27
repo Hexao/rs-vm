@@ -1,6 +1,6 @@
-use crate::component::memory_io::MemoryIO;
-use crate::component::memory::Memory;
 use super::memory_io::MemoryError;
+use crate::component::memory::Memory;
+use crate::component::memory_io::MemoryIO;
 
 struct Region {
     device: Box<dyn MemoryIO>,
@@ -13,26 +13,26 @@ impl Region {
         let len = device.len();
         let end = start + len;
 
-        if end - 1 > 0xFFFF {
-            Err(MemoryError::UnaddressableRegion(end))
-        } else {
-            Ok(Self { device, start, end })
-        }
+        (end - 1 <= 0xFFFF)
+            .then_some(Self { device, start, end })
+            .ok_or(MemoryError::UnaddressableRegion(end))
     }
 
     fn contain(&self, address: usize) -> Option<usize> {
-        if address >= self.start && address < self.end {
-            Some(address - self.start)
-        } else {
-            None
-        }
+        (self.start..self.end)
+            .contains(&address)
+            .then(|| address - self.start)
     }
 }
 
 impl Default for Region {
     fn default() -> Self {
         let memory = Memory::new(0x1_0000);
-        Self { device: Box::new(memory), start: 0x0000, end: 0xFFFF }
+        Self {
+            device: Box::new(memory),
+            start: 0x0000,
+            end: 0xFFFF,
+        }
     }
 }
 
@@ -41,7 +41,11 @@ pub struct MemoryMap {
 }
 
 impl MemoryMap {
-    pub fn add_device(&mut self, device: Box<dyn MemoryIO>, start: usize) -> Result<(), MemoryError> {
+    pub fn add_device(
+        &mut self,
+        device: Box<dyn MemoryIO>,
+        start: usize,
+    ) -> Result<(), MemoryError> {
         let reg = Region::new(device, start)?;
         self.regions.push(reg);
         Ok(())
@@ -98,6 +102,8 @@ impl MemoryMap {
 
 impl Default for MemoryMap {
     fn default() -> Self {
-        Self { regions: vec![Region::default()] }
+        Self {
+            regions: vec![Region::default()],
+        }
     }
 }

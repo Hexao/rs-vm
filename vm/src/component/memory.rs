@@ -47,12 +47,10 @@ impl Memory {
 impl MemoryIO for Memory {
     /// Get the memory cell from the `data` given a `location`
     fn get_memory_at_u8(&self, location: usize) -> Result<u8, MemoryError> {
-        #[cfg(debug_assertions)]
-        if location >= self.data.len() {
-            return Err(MemoryError::OutOfBounds(location));
-        }
-
-        Ok(self.data[location])
+        self.data
+            .get(location)
+            .copied()
+            .ok_or(MemoryError::OutOfBounds(location))
     }
 
     /// Get two memory cell from the `data` given a `location`
@@ -65,13 +63,10 @@ impl MemoryIO for Memory {
 
     /// Set the memory cell from the `data` given a `location`
     fn set_memory_at_u8(&mut self, location: usize, value: u8) -> Result<(), MemoryError> {
-        #[cfg(debug_assertions)]
-        if location >= self.data.len() {
-            return Err(MemoryError::OutOfBounds(location));
-        }
-
-        self.data[location] = value;
-        Ok(())
+        self.data
+            .get_mut(location)
+            .map(|x| *x = value)
+            .ok_or(MemoryError::OutOfBounds(location))
     }
 
     /// Set two memory cell from the `data` given a `location`
