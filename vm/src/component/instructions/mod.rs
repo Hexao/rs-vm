@@ -1,5 +1,17 @@
+pub mod composition;
 pub mod instruction_logic;
 pub mod instruction_map;
+
+pub mod keywords {
+    pub use super::composition::Parameters::Lit;
+    pub use super::composition::Parameters::Mem;
+    pub use super::composition::Parameters::Reg;
+
+    pub use super::composition::Instructions::Mov;
+
+    pub use super::composition::Kind::U16;
+    pub use super::composition::Kind::U8;
+}
 
 #[macro_export]
 macro_rules! register {
@@ -27,23 +39,23 @@ macro_rules! flag {
     ($self:ident, $value:ident) => {
         $self.flags = 0;
         if $value == 0 {
-            $self.flags |= F_ZERO_VAL;
+            $self.flags |= arch::flags::F_ZERO_VAL;
         }
         if $value > 0x7F {
-            $self.flags |= F_NEGATIF;
+            $self.flags |= arch::flags::F_NEGATIF;
         }
     };
 
     ($self:ident, $value:ident, $carry:ident) => {
         $self.flags = 0;
         if $value == 0 {
-            $self.flags |= F_ZERO_VAL;
+            $self.flags |= arch::flags::F_ZERO_VAL;
         }
         if $value > 0x7F {
-            $self.flags |= F_NEGATIF;
+            $self.flags |= arch::flags::F_NEGATIF;
         }
         if $carry {
-            $self.flags |= F_CARRY;
+            $self.flags |= arch::flags::F_CARRY;
         }
     };
 }

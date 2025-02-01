@@ -1,8 +1,6 @@
 use crate::component::cpu::{ExecutionError, CPU};
 
-use super::instruction_logic::Instructions::Mov;
-use super::instruction_logic::Kind::{U16, U8};
-use super::instruction_logic::Parameters::{Lit, Mem, Reg};
+use super::keywords::*;
 
 use crate::component::memory_io::{MemoryError, MemoryIO};
 
