@@ -82,14 +82,24 @@ impl RegisterKind {
         let reg_nb = reg.register();
         match self {
             RegisterKind::U8(val, _) => {
-                flag!(cpu, val);
-                println!("\tSet register {} to {:#04X}", reg.name(), val);
-                cpu.set_register_u8(reg_nb, val)
+                if let RegisterKind::PTR(reg_ptr, _) = reg {
+                    let mem: MemoryKind = reg_ptr.into();
+                    self.set_memory(cpu, mem)
+                } else {
+                    flag!(cpu, val);
+                    println!("\tSet register {} to {:#04X}", reg.name(), val);
+                    cpu.set_register_u8(reg_nb, val)
+                }
             }
             RegisterKind::U16(val, _) => {
-                flag!(cpu, val);
-                println!("\tSet register {} to {:#06X}", reg.name(), val);
-                cpu.set_register_u16(reg_nb, val)
+                if let RegisterKind::PTR(reg_ptr, _) = reg {
+                    let mem: MemoryKind = reg_ptr.into();
+                    self.set_memory(cpu, mem)
+                } else {
+                    flag!(cpu, val);
+                    println!("\tSet register {} to {:#06X}", reg.name(), val);
+                    cpu.set_register_u16(reg_nb, val)
+                }
             }
             RegisterKind::PTR(reg_ptr, _) => {
                 let mem: MemoryKind = reg_ptr.into();

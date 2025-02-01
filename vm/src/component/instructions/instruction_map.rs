@@ -35,36 +35,7 @@ impl CPU {
             // Move a memory address pointed by register in register
             MOV_PTRREG_REG => self.interpret(Mov(PtrReg, Reg)),
             // Move value from register to memory address pointed by register
-            MOV_REG_PTRREG => {
-                let r1 = self.fetch_reg()?;
-                let r2 = self.fetch_reg()?;
-
-                match SIZE_OF[r2] {
-                    1 => Err(ExecutionError::BadRegisterPtrLen),
-                    2 => {
-                        let val = register!(self, r1)?;
-                        let mem_loc = self.registers.get_memory_at_u16(ADDRESS_OF[r2])? as usize;
-
-                        #[cfg(debug_assertions)]
-                        {
-                            let r1_name = REGISTER_NAMES[r1];
-                            let r2_name = REGISTER_NAMES[r2];
-                            println!(
-                                "Move value {:#06X} from {} into memory {:#06X} pointed by {}",
-                                val, r1_name, mem_loc, r2_name
-                            );
-                        }
-
-                        flag!(self, val);
-                        match SIZE_OF[r1] {
-                            1 => Ok(self.memory.set_memory_at_u8(mem_loc, val as u8)?),
-                            2 => Ok(self.memory.set_memory_at_u16(mem_loc, val)?),
-                            x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
-                        }
-                    }
-                    x => Err(ExecutionError::from(MemoryError::BadRegisterLen(x))),
-                }
-            }
+            MOV_REG_PTRREG => self.interpret(Mov(Reg, PtrReg)),
             // Move value from memory address = [literal + register] to register
             MOV_LITOFF_REG => {
                 let base_address = self.fetch_mem()?;
