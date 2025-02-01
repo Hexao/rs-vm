@@ -29,6 +29,7 @@ pub enum Operand {
 
 pub enum Parameters {
     Reg,
+    PtrReg,
     Mem,
     Lit(Kind),
 }
@@ -37,8 +38,13 @@ impl Parameters {
     fn fetch(&self, cpu: &mut CPU) -> Result<Operand, ExecutionError> {
         Ok(match self {
             Parameters::Reg => {
-                let reg = RegisterKind::new(cpu)?;
+                let reg = RegisterKind::new(cpu, false)?;
                 print!("{}", reg.name());
+                Operand::Reg(reg)
+            }
+            Parameters::PtrReg => {
+                let reg = RegisterKind::new(cpu, true)?;
+                print!("*{}", reg.name());
                 Operand::Reg(reg)
             }
             Parameters::Mem => {
@@ -48,7 +54,7 @@ impl Parameters {
             }
             Parameters::Lit(kind) => {
                 let value = kind.fetch(cpu)?;
-                print!("(literal)");
+                print!(" (literal)");
                 Operand::Lit(value)
             }
         })

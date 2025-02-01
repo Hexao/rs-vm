@@ -28,6 +28,9 @@ mod tests {
             MOV_REG_REG,    AX,   BX,                  // move r1 in r2
             MOV_REG_MEM,    BX,   0x20, 0x10,          // move r2 in mem (0x2010)
             MOV_MEM_REG,    0x20, 0x10, CX,            // move mem (0x2010) in r3
+
+            MOV_LIT_REG,    0x10, 0x00, DX,            // move value 0x1000 in r4 (16 bit)
+            MOV_PTRREG_REG, DX,     EX,                // move value (0x000B) in memory (0x1000) pointed by r4 in r5
         ];
         cpu.set_instruction(&instructions);
 
@@ -38,6 +41,7 @@ mod tests {
         assert_eq!(cpu.get_register("bx").unwrap(), 0x0010);
         assert_eq!(cpu.get_memory_at_u16(0x2010).unwrap(), 0x0010);
         assert_eq!(cpu.get_register("cx").unwrap(), 0x0010);
+        assert_eq!(cpu.get_register("ex").unwrap(), 0x000B);
     }
 
     #[test]

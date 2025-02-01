@@ -3,14 +3,9 @@ pub mod instruction_logic;
 pub mod instruction_map;
 
 pub mod keywords {
-    pub use super::composition::Parameters::Lit;
-    pub use super::composition::Parameters::Mem;
-    pub use super::composition::Parameters::Reg;
-
-    pub use super::composition::Instructions::Mov;
-
-    pub use super::composition::Kind::U16;
-    pub use super::composition::Kind::U8;
+    pub use super::composition::Instructions::*;
+    pub use super::composition::Kind::*;
+    pub use super::composition::Parameters::*;
 }
 
 #[macro_export]

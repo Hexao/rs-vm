@@ -34,14 +34,17 @@ impl Value {
         match self {
             Value::U8(val) => {
                 flag!(cpu, val);
+                println!("\tSet memory at {:#06X} to {:#04X}", mem, val);
                 cpu.memory.set_memory_at_u8(mem, val)
             }
             Value::U16(val) => {
                 flag!(cpu, val);
+                println!("\tSet memory at {:#06X} to {:#06X}", mem, val);
                 cpu.memory.set_memory_at_u16(mem, val)
             }
             Value::Usize(val) => {
                 flag!(cpu, val);
+                println!("\tSet memory at {:#06X} to {:#06X}", mem, val);
                 cpu.memory.set_memory_at_u16(mem, val as u16)
             }
         }
@@ -50,20 +53,23 @@ impl Value {
 
     /// Set the register with the literal value
     pub fn set_register(self, cpu: &mut CPU, reg: RegisterKind) -> Result<(), ExecutionError> {
-        let reg = reg.register();
+        let reg_nb = reg.register();
         match self {
             Value::U8(val) => {
                 flag!(cpu, val);
-                cpu.set_register_u8(reg, val)
+                println!("\tSet register {} to {:#04X}", reg.name(), val);
+                cpu.set_register_u8(reg_nb, val)
             }
             Value::U16(val) => {
                 flag!(cpu, val);
-                cpu.set_register_u16(reg, val)
+                println!("\tSet register at {} to {:#04X}", reg.name(), val);
+                cpu.set_register_u16(reg_nb, val)
             }
             Value::Usize(val) => {
                 flag!(cpu, val);
+                println!("\tSet register at {} to {:#04X}", reg.name(), val);
                 let val = val as u16;
-                cpu.set_register_u16(reg, val)
+                cpu.set_register_u16(reg_nb, val)
             }
         }
     }
