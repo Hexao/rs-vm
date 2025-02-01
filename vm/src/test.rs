@@ -17,6 +17,30 @@ mod tests {
     }
 
     #[test]
+    fn test_mov() {
+        let mut cpu = CPU::default();
+
+        let instructions = [
+            // basic addition
+            MOV_LIT_REG,    0x00, 0x10, AX,            // move 0x10 in r1 (16 bit)
+            MOV_LIT_MEM8,   0x0A, 0x20, 0x00,          // move 0x0A in mem (0x2000)
+            MOV_LIT_MEM16,  0x00, 0x0B, 0x10, 0x00,    // move 0x0B in mem (0x3008)
+            MOV_REG_REG,    AX,   BX,                  // move r1 in r2
+            MOV_REG_MEM,    BX,   0x20, 0x10,          // move r2 in mem (0x2010)
+            MOV_MEM_REG,    0x20, 0x10, CX,            // move mem (0x2010) in r3
+        ];
+        cpu.set_instruction(&instructions);
+
+        while cpu.step() {}
+        assert_eq!(cpu.get_register("ax").unwrap(), 0x0010);
+        assert_eq!(cpu.get_memory_at_u8(0x2000).unwrap(), 0x0A);
+        assert_eq!(cpu.get_memory_at_u16(0x1000).unwrap(), 0x000B);
+        assert_eq!(cpu.get_register("bx").unwrap(), 0x0010);
+        assert_eq!(cpu.get_memory_at_u16(0x2010).unwrap(), 0x0010);
+        assert_eq!(cpu.get_register("cx").unwrap(), 0x0010);
+    }
+
+    #[test]
     fn cpu_acc_test() {
         let mut cpu = CPU::default();
 
