@@ -1,8 +1,4 @@
 [workspace]
-
+resolver = "2"
 default-members = ["vm", "compiler"]
-members = [
-    "vm",
-    "arch",
-    "compiler",
-]
+members = ["vm", "arch", "compiler"]
