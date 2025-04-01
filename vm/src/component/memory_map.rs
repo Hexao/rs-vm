@@ -71,23 +71,19 @@ impl MemoryMap {
     }
 
     fn find_region(&self, address: usize) -> Result<(&Region, usize), MemoryError> {
-        for reg in self.regions.iter().rev() {
-            if let Some(address) = reg.contain(address) {
-                return Ok((reg, address));
-            }
-        }
-
-        Err(MemoryError::OutOfBounds(address))
+        self.regions
+            .iter()
+            .rev()
+            .find_map(|reg| reg.contain(address).map(|a| (reg, a)))
+            .ok_or(MemoryError::OutOfBounds(address))
     }
 
     fn find_region_mut(&mut self, address: usize) -> Result<(&mut Region, usize), MemoryError> {
-        for reg in self.regions.iter_mut().rev() {
-            if let Some(address) = reg.contain(address) {
-                return Ok((reg, address));
-            }
-        }
-
-        Err(MemoryError::OutOfBounds(address))
+        self.regions
+            .iter_mut()
+            .rev()
+            .find_map(|reg| reg.contain(address).map(|a| (reg, a)))
+            .ok_or(MemoryError::OutOfBounds(address))
     }
 
     pub fn len(&self) -> usize {
